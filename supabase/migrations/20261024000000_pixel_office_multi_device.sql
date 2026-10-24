@@ -11,10 +11,15 @@ CREATE TABLE IF NOT EXISTS public.offices (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     owner_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     name TEXT NOT NULL DEFAULT 'The Workroom',
+    layout JSONB DEFAULT NULL,
+    layout_version INT DEFAULT 1,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT uq_office_owner UNIQUE (owner_id)
 );
+
+ALTER TABLE public.offices ADD COLUMN IF NOT EXISTS layout JSONB DEFAULT NULL;
+ALTER TABLE public.offices ADD COLUMN IF NOT EXISTS layout_version INT DEFAULT 1;
 
 -- 3. RUNNERS TABLE (Máy Windows chạy Antigravity CLI)
 CREATE TABLE IF NOT EXISTS public.runners (

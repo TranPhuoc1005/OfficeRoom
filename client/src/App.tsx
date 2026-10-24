@@ -3,6 +3,11 @@ import type { Agent, Task } from './types';
 import { PixelOfficeCanvas } from './PixelOfficeCanvas';
 import { FolderBrowserModal } from './FolderBrowserModal';
 import { drawAgentSprite } from './agent-sprite';
+import { getDefaultOfficeFurniture } from './furniture-data';
+import type { PlacedFurniture, FurnitureDefinition } from './furniture-data';
+import { FurnitureCatalogDock } from './FurnitureCatalogDock';
+import { AgentModal } from './AgentModal';
+import { AgentEditModal } from './AgentEditModal';
 import {
   supabase,
   isSupabaseConfigured,
@@ -78,6 +83,17 @@ export default function App() {
   // Modals state
   const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
+  const [detailedAgent, setDetailedAgent] = useState<Agent | null>(null);
+
+  // Office Decoration State
+  const [furniture, setFurniture] = useState<PlacedFurniture[]>([]);
+  const [initialFurnitureSnapshot, setInitialFurnitureSnapshot] = useState<PlacedFurniture[]>([]);
+  const [undoStack, setUndoStack] = useState<PlacedFurniture[][]>([]);
+  const [isDecorating, setIsDecorating] = useState<boolean>(false);
+  const [selectedCatalogItem, setSelectedCatalogItem] = useState<FurnitureDefinition | null>(null);
+  const [selectedPlacedItem, setSelectedPlacedItem] = useState<PlacedFurniture | null>(null);
+  const [furnitureLayoutVersion, setFurnitureLayoutVersion] = useState<number>(1);
+  const [isSavingLayout, setIsSavingLayout] = useState<boolean>(false);
 
   const [isTaskFormModalOpen, setIsTaskFormModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -271,11 +287,202 @@ export default function App() {
     }
   }, [isSupabaseActive, officeId]);
 
+  // 4. Load Office Furniture Layout
+  const loadOfficeLayout = useCallback(
+    async (currentAgents: Agent[]) => {
+      try {
+        let loadedLayout: PlacedFurniture[] | null = null;
+        let version = 1;
+
+        if (isSupabaseActive && supabase && officeId) {
+          const { data, error } = await supabase
+            .from('offices')
+            .select('layout, layout_version')
+            .eq('id', officeId)
+            .maybeSingle();
+
+          if (!error && data?.layout && Array.isArray(data.layout) && data.layout.length > 0) {
+            loadedLayout = data.layout;
+            version = data.layout_version || 1;
+          }
+        } else {
+          try {
+            const res = await fetch('/api/layout');
+            if (res.ok) {
+              const data = await res.json();
+              if (data.layout && Array.isArray(data.layout) && data.layout.length > 0) {
+                loadedLayout = data.layout;
+                version = data.version || 1;
+              }
+            }
+          } catch {}
+        }
+
+        if (loadedLayout && loadedLayout.length > 0) {
+          setFurniture(loadedLayout);
+          setInitialFurnitureSnapshot(loadedLayout);
+          setFurnitureLayoutVersion(version);
+        } else {
+          // Generate default office furniture matching current agents
+          const defaultItems = getDefaultOfficeFurniture(currentAgents.length || 7);
+          const deskItems = defaultItems.filter((f) => f.type.startsWith('desk'));
+          currentAgents.forEach((ag, idx) => {
+            if (deskItems[idx]) {
+              deskItems[idx].assignedAgentId = ag.id;
+            }
+          });
+          setFurniture(defaultItems);
+          setInitialFurnitureSnapshot(defaultItems);
+          setFurnitureLayoutVersion(1);
+        }
+      } catch (err) {
+        console.warn('Failed to load office layout, falling back to default:', err);
+        const defaultItems = getDefaultOfficeFurniture(currentAgents.length || 7);
+        setFurniture(defaultItems);
+        setInitialFurnitureSnapshot(defaultItems);
+      }
+    },
+    [isSupabaseActive, officeId]
+  );
+
+  // Decoration Mode Toggle & Actions
+  const handleToggleDecorating = () => {
+    if (!isDecorating) {
+      setInitialFurnitureSnapshot(JSON.parse(JSON.stringify(furniture)));
+      setUndoStack([]);
+      setSelectedCatalogItem(null);
+      setSelectedPlacedItem(null);
+      setIsDecorating(true);
+      setCurrentView('office');
+      showToast('🔨 Đã bật chế độ trang trí. Chọn đồ nội thất từ thanh bên dưới để đặt.');
+    } else {
+      handleCancelDecorate();
+    }
+  };
+
+  const handleUpdateFurniture = (newFurniture: PlacedFurniture[]) => {
+    setUndoStack((prev) => [...prev, JSON.parse(JSON.stringify(furniture))]);
+    setFurniture(newFurniture);
+  };
+
+  const handleUndoDecorate = () => {
+    if (undoStack.length === 0) return;
+    const previous = undoStack[undoStack.length - 1];
+    setUndoStack((prev) => prev.slice(0, -1));
+    setFurniture(previous);
+    setSelectedPlacedItem(null);
+  };
+
+  const handleCancelDecorate = () => {
+    setFurniture(JSON.parse(JSON.stringify(initialFurnitureSnapshot)));
+    setIsDecorating(false);
+    setSelectedCatalogItem(null);
+    setSelectedPlacedItem(null);
+    setUndoStack([]);
+    showToast('Đã hủy các thay đổi trang trí.');
+  };
+
+  const handleSaveDecorate = async () => {
+    setIsSavingLayout(true);
+    try {
+      if (isSupabaseActive && supabase && officeId) {
+        const nextVersion = furnitureLayoutVersion + 1;
+        const { error } = await supabase
+          .from('offices')
+          .update({
+            layout: furniture,
+            layout_version: nextVersion,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', officeId);
+
+        if (error) {
+          showToast(`Lỗi lưu bố cục: ${error.message}`);
+          return;
+        }
+
+        setFurnitureLayoutVersion(nextVersion);
+        setInitialFurnitureSnapshot(JSON.parse(JSON.stringify(furniture)));
+        setIsDecorating(false);
+        setSelectedCatalogItem(null);
+        setSelectedPlacedItem(null);
+        setUndoStack([]);
+        showToast('✓ Đã lưu bố cục văn phòng lên Cloud!');
+      } else {
+        const res = await fetch('/api/layout', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ layout: furniture, version: furnitureLayoutVersion })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setFurnitureLayoutVersion(data.version || furnitureLayoutVersion + 1);
+          setInitialFurnitureSnapshot(JSON.parse(JSON.stringify(furniture)));
+          setIsDecorating(false);
+          setSelectedCatalogItem(null);
+          setSelectedPlacedItem(null);
+          setUndoStack([]);
+          showToast('✓ Đã lưu bố cục văn phòng thành công!');
+        } else if (res.status === 409) {
+          alert('Xung đột: ' + data.error);
+        } else {
+          showToast(`Lỗi lưu: ${data.error}`);
+        }
+      }
+    } catch (err: any) {
+      showToast(`Lỗi mạng: ${err.message}`);
+    } finally {
+      setIsSavingLayout(false);
+    }
+  };
+
+  const handleDeletePlacedItem = (id: string) => {
+    const item = furniture.find((f) => f.id === id);
+    if (!item) return;
+
+    if (item.assignedAgentId) {
+      const ag = agents.find((a) => a.id === item.assignedAgentId);
+      const ok = window.confirm(
+        `Bàn này đang được gán cho ${ag?.name || 'Agent'}. Xóa bàn sẽ khiến Agent chưa có bàn riêng. Bạn có chắc muốn xóa không?`
+      );
+      if (!ok) return;
+    }
+
+    handleUpdateFurniture(furniture.filter((f) => f.id !== id));
+    setSelectedPlacedItem(null);
+    showToast('Đã xóa món đồ.');
+  };
+
+  const handleAssignDeskAgent = (placedId: string, agentId: string | null) => {
+    const updated = furniture.map((f) => {
+      if (f.id === placedId) {
+        return { ...f, assignedAgentId: agentId };
+      }
+      if (agentId && f.assignedAgentId === agentId) {
+        return { ...f, assignedAgentId: null };
+      }
+      return f;
+    });
+
+    handleUpdateFurniture(updated);
+    setSelectedPlacedItem((prev) => (prev ? { ...prev, assignedAgentId: agentId } : null));
+
+    if (agentId) {
+      const ag = agents.find((a) => a.id === agentId);
+      showToast(`Đã gán bàn cho ${ag?.name || 'Agent'}`);
+    } else {
+      showToast('Đã hủy gán chủ bàn.');
+    }
+  };
+
   // Auth Listener
   useEffect(() => {
     if (!isSupabaseConfigured() || isLocalOnlyMode) {
       loadAgents().then((ag) => {
-        if (ag && ag.length > 0) loadAllTasks(ag);
+        if (ag && ag.length > 0) {
+          loadAllTasks(ag);
+          loadOfficeLayout(ag);
+        }
       });
       return;
     }
@@ -316,6 +523,7 @@ export default function App() {
     loadAgents().then((loaded) => {
       loadAllTasks(loaded || agents);
       loadRunnersAndProjects();
+      loadOfficeLayout(loaded || agents);
     });
 
     const channel = supabase
@@ -791,6 +999,43 @@ export default function App() {
     }
   };
 
+  const handleUpdateAgent = async (agentId: string, updated: Partial<Agent>) => {
+    try {
+      if (isSupabaseActive && supabase) {
+        const updatePayload: any = {
+          updated_at: new Date().toISOString()
+        };
+        if (updated.name !== undefined) updatePayload.name = updated.name;
+        if (updated.role !== undefined) updatePayload.role = updated.role;
+        if (updated.brief !== undefined) updatePayload.brief = updated.brief;
+        if (updated.system_instructions !== undefined) updatePayload.system_instructions = updated.system_instructions;
+        if (updated.color !== undefined) updatePayload.color = updated.color;
+        if (updated.avatar !== undefined) updatePayload.avatar = updated.avatar;
+        if (updated.folder_path !== undefined) updatePayload.folder_path = updated.folder_path;
+
+        const { error } = await supabase.from('agents').update(updatePayload).eq('id', agentId);
+        if (error) throw error;
+        showToast('Đã lưu thông tin agent thành công');
+        await loadAgents();
+      } else {
+        const res = await fetch(`/api/agents/${agentId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updated)
+        });
+        if (res.ok) {
+          showToast('Đã lưu thông tin agent thành công');
+          await loadAgents();
+        } else {
+          const err = await res.json();
+          showToast(`Lỗi: ${err.error}`);
+        }
+      }
+    } catch (err: any) {
+      showToast(`Lỗi: ${err.message}`);
+    }
+  };
+
   const handleDeleteAgent = async (agentId: string) => {
     const ag = agents.find((a) => a.id === agentId);
     if (!ag) return;
@@ -1074,6 +1319,12 @@ export default function App() {
           selectedAgentId={selectedAgentId}
           onSelectAgent={handleSelectAgent}
           isMotionPaused={motionPaused}
+          isDecorating={isDecorating}
+          furniture={furniture}
+          onUpdateFurniture={handleUpdateFurniture}
+          selectedCatalogItem={selectedCatalogItem}
+          selectedPlacedItem={selectedPlacedItem}
+          onSelectPlacedItem={setSelectedPlacedItem}
         />
       </section>
 
@@ -1338,6 +1589,13 @@ export default function App() {
           >
             📂 Đổi thư mục
           </button>
+          <button
+            className="small"
+            onClick={() => setDetailedAgent(selectedAgent)}
+            title="Tùy chỉnh vai trò và ngoại hình Agent"
+          >
+            🎨 Ngoại hình
+          </button>
           {selectedAgent.isBusy ? (
             <button
               className="primary small"
@@ -1566,6 +1824,13 @@ export default function App() {
                       </button>
                       <button
                         className="small"
+                        onClick={() => setDetailedAgent(ag)}
+                        title="Tùy chỉnh vai trò và ngoại hình Agent"
+                      >
+                        🎨 Ngoại hình
+                      </button>
+                      <button
+                        className="small"
                         onClick={() => handleOpenAgentForm(ag)}
                       >
                         Chỉnh vai trò
@@ -1789,8 +2054,11 @@ export default function App() {
         <nav className="game-dock" aria-label="Chức năng văn phòng">
           <button
             data-view="office"
-            className={currentView === 'office' ? 'active' : ''}
-            onClick={() => switchView('office')}
+            className={currentView === 'office' && !isDecorating ? 'active' : ''}
+            onClick={() => {
+              if (isDecorating) handleCancelDecorate();
+              switchView('office');
+            }}
           >
             <span className="dock-icon">{renderSvgIcon('office')}</span>
             <span>Văn phòng</span>
@@ -1798,9 +2066,23 @@ export default function App() {
           </button>
 
           <button
+            type="button"
+            className={`dock-decor-btn ${isDecorating ? 'active' : ''}`}
+            onClick={handleToggleDecorating}
+            title="Bật/Tắt chế độ trang trí văn phòng"
+          >
+            <span className="dock-icon">{renderSvgIcon('decor')}</span>
+            <span>{isDecorating ? 'Đang trang trí' : 'Trang trí'}</span>
+            <i></i>
+          </button>
+
+          <button
             data-view="team"
             className={currentView === 'team' ? 'active' : ''}
-            onClick={() => switchView('team')}
+            onClick={() => {
+              if (isDecorating) handleCancelDecorate();
+              switchView('team');
+            }}
           >
             <span className="dock-icon">{renderSvgIcon('team')}</span>
             <span>Đội agent</span>
@@ -1859,11 +2141,23 @@ export default function App() {
       </div>
 
       {/* 9. MODALS / DIALOGS */}
-      {/* AGENT FORM MODAL (Tạo / Sửa agent) */}
-      {isAgentModalOpen && (
+      {/* AGENT EDIT MODAL (Chỉnh sửa vai trò & Ngoại hình) */}
+      {isAgentModalOpen && editingAgent && (
+        <AgentEditModal
+          agent={editingAgent}
+          onClose={() => setIsAgentModalOpen(false)}
+          onSave={async (updated) => {
+            await handleUpdateAgent(editingAgent.id, updated);
+          }}
+          onDelete={() => handleDeleteAgent(editingAgent.id)}
+        />
+      )}
+
+      {/* AGENT CREATE MODAL */}
+      {isAgentModalOpen && !editingAgent && (
         <dialog open id="modal">
           <div className="modal-head">
-            <h2 id="modalTitle">{editingAgent ? 'Chỉnh sửa agent' : 'Thêm thành viên mới'}</h2>
+            <h2 id="modalTitle">Thêm thành viên mới</h2>
             <button className="small" onClick={() => setIsAgentModalOpen(false)}>
               ✕
             </button>
@@ -1876,7 +2170,7 @@ export default function App() {
                 name="aName"
                 maxLength={40}
                 required
-                defaultValue={editingAgent?.name || ''}
+                placeholder="Ví dụ: Hoàng"
               />
 
               <label htmlFor="aRole">Vai trò / chuyên môn</label>
@@ -1885,7 +2179,7 @@ export default function App() {
                 name="aRole"
                 maxLength={100}
                 required
-                defaultValue={editingAgent?.role || ''}
+                placeholder="Ví dụ: Backend Developer"
               />
 
               <label htmlFor="aBrief">Hướng dẫn làm việc</label>
@@ -1895,7 +2189,6 @@ export default function App() {
                 maxLength={8000}
                 required
                 placeholder="Chuyên môn, cách trả lời, tiêu chí đầu ra…"
-                defaultValue={editingAgent?.brief || editingAgent?.system_instructions || ''}
               />
 
               <label htmlFor="aFolder">Thư mục nguồn dự án</label>
@@ -1904,12 +2197,12 @@ export default function App() {
                   id="aFolder"
                   name="aFolder"
                   required
-                  defaultValue={editingAgent?.folder_path || 'C:\\'}
+                  defaultValue="C:\\"
                 />
                 <button
                   type="button"
                   className="small"
-                  onClick={() => setProjectSelectAgentId(editingAgent?.id || 'new')}
+                  onClick={() => setProjectSelectAgentId('new')}
                 >
                   Chọn dự án
                 </button>
@@ -1920,20 +2213,10 @@ export default function App() {
                 type="color"
                 id="aColor"
                 name="aColor"
-                defaultValue={editingAgent?.color || editingAgent?.avatar?.clothesColor || '#2563eb'}
+                defaultValue="#2563eb"
               />
 
               <div className="modal-actions">
-                {editingAgent && (
-                  <button
-                    type="button"
-                    className="danger"
-                    id="deleteAgent"
-                    onClick={() => handleDeleteAgent(editingAgent.id)}
-                  >
-                    Xóa agent
-                  </button>
-                )}
                 <button type="submit" className="primary">
                   Lưu agent
                 </button>
@@ -1942,6 +2225,47 @@ export default function App() {
           </div>
         </dialog>
       )}
+
+      {/* DETAILED AGENT MODAL (Giao Task, Ngoại hình Chibi trực tiếp, Lịch sử) */}
+      {detailedAgent && (
+        <AgentModal
+          agent={detailedAgent}
+          onClose={() => setDetailedAgent(null)}
+          onUpdateAgent={async (updated) => {
+            await handleUpdateAgent(detailedAgent.id, updated);
+            setDetailedAgent((prev) => (prev ? { ...prev, ...updated } : null));
+          }}
+          onAssignTask={async (_prompt) => {
+            handleOpenTaskForm(null, detailedAgent.id);
+            setDetailedAgent(null);
+          }}
+          onStopTask={async () => {
+            await handleStopTask(detailedAgent.id);
+          }}
+          onResetConversation={async () => {
+            await handleResetConversation(detailedAgent.id);
+          }}
+          activeTask={activeTasks.get(detailedAgent.id)}
+          tasks={tasks.filter((t) => t.agent_id === detailedAgent.id)}
+        />
+      )}
+
+      {/* FURNITURE CATALOG DOCK (DECORATION MODE) */}
+      <FurnitureCatalogDock
+        isOpen={isDecorating}
+        onClose={handleCancelDecorate}
+        selectedCatalogItem={selectedCatalogItem}
+        onSelectCatalogItem={setSelectedCatalogItem}
+        selectedPlacedItem={selectedPlacedItem}
+        onDeletePlacedItem={handleDeletePlacedItem}
+        onAssignDeskAgent={handleAssignDeskAgent}
+        agents={agents}
+        canUndo={undoStack.length > 0}
+        onUndo={handleUndoDecorate}
+        onSave={handleSaveDecorate}
+        onCancel={handleCancelDecorate}
+        isSaving={isSavingLayout}
+      />
 
       {/* TASK FORM MODAL (Giao việc / Chỉnh sửa công việc) */}
       {isTaskFormModalOpen && (
@@ -2354,14 +2678,12 @@ const ChibiPortrait: React.FC<{ index: number; agent: Agent }> = ({ index, agent
       canvasRef.current,
       {
         index,
-        agent: {
-          color: agent.color || agent.avatar?.clothesColor || '#2563eb'
-        }
+        agent
       },
       'down',
       0
     );
-  }, [index, agent.color, agent.avatar?.clothesColor]);
+  }, [index, agent, agent.avatar, agent.color]);
 
   return <canvas ref={canvasRef} width={32} height={40} aria-hidden="true" />;
 };
@@ -2406,6 +2728,8 @@ function renderSvgIcon(name: string) {
   const icons: Record<string, string> = {
     office:
       '<path d="M3 10 12 3l9 7v10H3Z"/><path d="M9 20v-7h6v7M7 9h.01M17 9h.01"/>',
+    decor:
+      '<path d="m19 11-8-8-8.6 8.6a2 2 0 0 0 0 2.8l5.2 5.2c.8.8 2 .8 2.8 0L19 11Z"/><path d="m5 2 5 5"/><path d="M2 13h15"/><path d="M22 20a2 2 0 1 1-4 0c0-1.6 1.7-2.4 2-4 .3 1.6 2 2.4 2 4Z"/>',
     team:
       '<circle cx="9" cy="7" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M16 4a3 3 0 0 1 0 6M17 13a5 5 0 0 1 4 5v3"/>',
     plus: '<path d="M12 4v16M4 12h16"/>',

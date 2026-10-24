@@ -71,6 +71,13 @@ export function initDatabase() {
       completed_at INTEGER,
       FOREIGN KEY (agent_id) REFERENCES agents (id)
     );
+
+    CREATE TABLE IF NOT EXISTS office_layouts (
+      id TEXT PRIMARY KEY,
+      layout TEXT NOT NULL,
+      version INTEGER NOT NULL DEFAULT 1,
+      updated_at INTEGER NOT NULL
+    );
   `);
 
   // 2. Schema migrations: safely add columns if missing

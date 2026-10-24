@@ -1,13 +1,21 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import type { Agent, Task } from './types';
 import { drawAgentSprite } from './agent-sprite';
+import { getFurnitureDef } from './furniture-data';
+import type { PlacedFurniture, FurnitureDefinition } from './furniture-data';
 
-interface PixelOfficeCanvasProps {
+export interface PixelOfficeCanvasProps {
   agents: Agent[];
   tasks: Task[];
   selectedAgentId: string | null;
   onSelectAgent: (agent: Agent) => void;
   isMotionPaused?: boolean;
+  isDecorating?: boolean;
+  furniture: PlacedFurniture[];
+  onUpdateFurniture?: (newFurniture: PlacedFurniture[]) => void;
+  selectedCatalogItem?: FurnitureDefinition | null;
+  selectedPlacedItem?: PlacedFurniture | null;
+  onSelectPlacedItem?: (item: PlacedFurniture | null) => void;
 }
 
 interface Obstacle {
@@ -33,6 +41,7 @@ interface Actor {
   path: Point[];
   destination?: number;
   busy: boolean;
+  currentRestStop?: string | null;
 }
 
 const STEP = 16;
@@ -42,10 +51,17 @@ export const PixelOfficeCanvas: React.FC<PixelOfficeCanvasProps> = ({
   tasks,
   selectedAgentId,
   onSelectAgent,
-  isMotionPaused = false
+  isMotionPaused = false,
+  isDecorating = false,
+  furniture,
+  onUpdateFurniture,
+  selectedCatalogItem = null,
+  selectedPlacedItem = null,
+  onSelectPlacedItem
 }) => {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
 
   const [worldDim, setWorldDim] = useState<{ W: number; H: number; scale: number }>({
@@ -56,285 +72,245 @@ export const PixelOfficeCanvas: React.FC<PixelOfficeCanvasProps> = ({
 
   const actorsRef = useRef<Map<string, Actor>>(new Map());
   const obstaclesRef = useRef<Obstacle[]>([]);
-  const deskHomesRef = useRef<Point[]>([]);
   const lastTimeRef = useRef<number>(0);
   const animFrameRef = useRef<number | null>(null);
   const [, setFrameTick] = useState(0);
 
-  // Labels state for zones
-  const [zoneLabels, setZoneLabels] = useState<
-    Array<{ text: string; left: string; top: string; visible: boolean }>
-  >([]);
+  // Drag and hover state for decoration
+  const [hoverGrid, setHoverGrid] = useState<{ gx: number; gy: number; valid: boolean } | null>(null);
+  const [draggingItem, setDraggingItem] = useState<{
+    item: PlacedFurniture;
+    startGx: number;
+    startGy: number;
+    curGx: number;
+    curGy: number;
+  } | null>(null);
 
-  // 1. Procedural room drawing matching ChatGPT preview/pixel-office.js
-  const drawRoom = useCallback((W: number, H: number, n: number) => {
-    const canvas = canvasRef.current;
+  // 1. Check if placement is valid (inside room boundaries and not overlapping other obstacles)
+  const isPlacementValid = useCallback(
+    (gx: number, gy: number, w: number, h: number, ignoreItemId?: string): boolean => {
+      const maxGx = Math.floor(worldDim.W / STEP) - 1;
+      const maxGy = Math.floor(worldDim.H / STEP) - 2;
+
+      // Boundary check: Top wall ends at gy = 5, bottom margin at maxGy
+      if (gx < 1 || gx + w > maxGx || gy < 5 || gy + h > maxGy) {
+        return false;
+      }
+
+      // Overlap check against other obstacles
+      for (const item of furniture) {
+        if (ignoreItemId && item.id === ignoreItemId) continue;
+        const def = getFurnitureDef(item.type);
+        if (!def || !def.isObstacle) continue;
+
+        const overlap =
+          gx < item.gx + def.w &&
+          gx + w > item.gx &&
+          gy < item.gy + def.h &&
+          gy + h > item.gy;
+
+        if (overlap) {
+          return false;
+        }
+      }
+
+      return true;
+    },
+    [furniture, worldDim.W, worldDim.H]
+  );
+
+  // 2. Render Main Canvas (Floor, Walls, Windows, Rugs, and Placed Furniture)
+  const renderRoom = useCallback(
+    (W: number, H: number) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const g = canvas.getContext('2d');
+      if (!g) return;
+      g.imageSmoothingEnabled = false;
+
+      // Rebuild obstacle collision list from placed items
+      const newObstacles: Obstacle[] = [];
+
+      g.clearRect(0, 0, W, H);
+
+      const rect = (x: number, y: number, w: number, h: number, c: string) => {
+        g.fillStyle = c;
+        g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
+      };
+
+      // A. Parquet wooden floor fills viewport completely
+      rect(0, 0, W, H, '#cfb591');
+      for (let y = 87; y < H; y += 18) {
+        rect(0, y, W, 1, '#baa27d');
+        for (let x = (Math.floor(y / 18) % 2) * 40; x < W; x += 80) {
+          rect(x, y, 1, 18, '#baa27d');
+          if (x + 29 < W) rect(x + 13, y + 5, 16, 1, '#d8bf98');
+        }
+      }
+
+      // B. Top wall & windows
+      rect(0, 0, W, 86, '#d8d9bb');
+      rect(0, 0, W, 4, '#f5ebd0');
+      rect(0, 81, W, 9, '#a98a61');
+      rect(0, 81, W, 3, '#e5cba0');
+
+      for (let x = 34; x + 135 < W; x += 180) {
+        rect(x, 24, 136, 49, '#9ebaaa');
+        rect(x + 4, 28, 128, 38, '#bfd5bf');
+        rect(x + 8, 32, 26, 4, '#e1ebcd');
+        rect(x + 66, 25, 4, 46, '#ece9cd');
+        rect(x + 2, 66, 132, 5, '#dfe8ca');
+        rect(x - 4, 73, 144, 7, '#b89a6d');
+      }
+
+      // C. LAYER 1: Rugs (drawn underneath furniture)
+      const rugs = furniture.filter((item) => {
+        const def = getFurnitureDef(item.type);
+        return def && def.category === 'rug';
+      });
+
+      rugs.forEach((item) => {
+        const def = getFurnitureDef(item.type);
+        if (!def) return;
+        const px = item.gx * STEP;
+        const py = item.gy * STEP;
+        const pw = def.w * STEP;
+        const ph = def.h * STEP;
+        def.draw(g, px, py, pw, ph, item.variant);
+      });
+
+      // D. LAYER 2: Furniture sorted by gy (depth-sorted)
+      const nonRugs = furniture
+        .filter((item) => {
+          const def = getFurnitureDef(item.type);
+          return def && def.category !== 'rug';
+        })
+        .sort((a, b) => a.gy - b.gy);
+
+      nonRugs.forEach((item) => {
+        const def = getFurnitureDef(item.type);
+        if (!def) return;
+        const px = item.gx * STEP;
+        const py = item.gy * STEP;
+        const pw = def.w * STEP;
+        const ph = def.h * STEP;
+
+        // Register obstacle
+        if (def.isObstacle) {
+          if (def.isDesk) {
+            // Desk obstacle covers desk body, leaves chair slot open
+            newObstacles.push({
+              x: px - 6,
+              y: py,
+              w: pw + 12,
+              h: 58
+            });
+          } else {
+            newObstacles.push({
+              x: px,
+              y: py,
+              w: pw,
+              h: ph
+            });
+          }
+        }
+
+        // Determine assigned agent name & work status
+        let assignedAgentName: string | undefined;
+        let isWorking = false;
+
+        if (item.assignedAgentId) {
+          const ag = agents.find((a) => a.id === item.assignedAgentId);
+          if (ag) {
+            assignedAgentName = ag.name;
+            isWorking = ag.isBusy || tasks.some(
+              (t) => t.agent_id === ag.id && (t.status === 'RUNNING' || t.status === 'doing')
+            );
+          }
+        }
+
+        def.draw(g, px, py, pw, ph, item.variant, {
+          assignedAgentName,
+          isWorking
+        });
+
+        // Draw selected highlight border if selected in decorate mode
+        if (isDecorating && selectedPlacedItem?.id === item.id) {
+          g.save();
+          g.strokeStyle = '#eab308';
+          g.lineWidth = 2;
+          g.setLineDash([4, 4]);
+          g.strokeRect(px - 2, py - 2, pw + 4, ph + 4);
+          g.restore();
+        }
+      });
+
+      obstaclesRef.current = newObstacles;
+    },
+    [furniture, agents, tasks, isDecorating, selectedPlacedItem]
+  );
+
+  // 3. Render Decoration Grid Overlay (Grid lines, Hover Preview, Valid Green / Blocked Red)
+  const renderDecorOverlay = useCallback(() => {
+    const canvas = overlayCanvasRef.current;
     if (!canvas) return;
     const g = canvas.getContext('2d');
     if (!g) return;
-    g.imageSmoothingEnabled = false;
+    g.clearRect(0, 0, worldDim.W, worldDim.H);
 
-    obstaclesRef.current = [];
-    deskHomesRef.current = [];
-    g.clearRect(0, 0, W, H);
+    if (!isDecorating) return;
 
-    const rect = (x: number, y: number, w: number, h: number, c: string) => {
-      g.fillStyle = c;
-      g.fillRect(Math.round(x), Math.round(y), w, h);
-    };
+    // A. Draw faint floor grid
+    g.save();
+    g.strokeStyle = 'rgba(100, 116, 139, 0.15)';
+    g.lineWidth = 1;
 
-    const block = (x: number, y: number, w: number, h: number) => {
-      obstaclesRef.current.push({ x: x - 13, y: y - 9, w: w + 26, h: h + 20 });
-    };
+    for (let x = 0; x <= worldDim.W; x += STEP) {
+      g.beginPath();
+      g.moveTo(x + 0.5, 86);
+      g.lineTo(x + 0.5, worldDim.H);
+      g.stroke();
+    }
+    for (let y = 86; y <= worldDim.H; y += STEP) {
+      g.beginPath();
+      g.moveTo(0, y + 0.5);
+      g.lineTo(worldDim.W, y + 0.5);
+      g.stroke();
+    }
+    g.restore();
 
-    const plant = (x: number, y: number, large = false) => {
-      const s = large ? 1.5 : 1;
-      g.save();
-      g.translate(x, y);
-      g.scale(s, s);
-      rect(-9, -4, 18, 17, '#866748');
-      rect(-11, -7, 22, 5, '#d0a176');
-      rect(-7, -2, 14, 12, '#bc885d');
-      rect(-3, -38, 5, 31, '#65825a');
-      rect(-17, -34, 13, 9, '#73925e');
-      rect(2, -41, 11, 12, '#8ba56a');
-      rect(-10, -47, 12, 13, '#9caf74');
-      rect(2, -27, 18, 9, '#7d985c');
-      rect(-16, -18, 13, 8, '#99ad72');
-      rect(-9, -42, 6, 5, '#b3bf89');
-      g.restore();
-      block(x - 13, y - 12, 26, 26);
-    };
+    // B. Draw Hover / Drag Placement Preview
+    if (hoverGrid && (selectedCatalogItem || draggingItem)) {
+      const def = selectedCatalogItem || (draggingItem ? getFurnitureDef(draggingItem.item.type) : null);
+      if (def) {
+        const px = hoverGrid.gx * STEP;
+        const py = hoverGrid.gy * STEP;
+        const pw = def.w * STEP;
+        const ph = def.h * STEP;
 
-    const desk = (x: number, y: number) => {
-      rect(x - 48, y + 14, 96, 37, '#a98359');
-      rect(x - 48, y + 6, 96, 39, '#bd996e');
-      rect(x - 46, y + 6, 92, 4, '#e3bd87');
-      rect(x - 46, y + 43, 5, 15, '#93734e');
-      rect(x + 41, y + 43, 5, 15, '#93734e');
-      rect(x - 21, y + 12, 40, 27, '#4c5953');
-      rect(x - 18, y + 14, 34, 20, '#aec2a0');
-      rect(x - 15, y + 17, 24, 2, '#e1e8bb');
-      rect(x - 15, y + 22, 16, 2, '#7f9e82');
-      rect(x - 15, y + 27, 21, 2, '#d2ddb4');
-      rect(x - 3, y + 38, 5, 7, '#606e5a');
-      rect(x - 16, y + 44, 31, 3, '#e6dcb4');
-      rect(x - 17, y + 50, 35, 7, '#d6cba3');
-      for (let i = 0; i < 6; i++) {
-        rect(x - 14 + i * 5, y + 52, 2, 2, '#8e967e');
-      }
-      rect(x + 29, y + 32, 9, 10, '#fff0cd');
-      rect(x + 38, y + 34, 4, 5, '#d3b68b');
-      rect(x - 40, y + 28, 13, 19, '#ddd3a7');
-      rect(x - 38, y + 31, 8, 1, '#ad9e79');
-      rect(x - 38, y + 35, 8, 1, '#ad9e79');
-      rect(x - 17, y + 66, 34, 19, '#6c806b');
-      rect(x - 20, y + 64, 40, 8, '#93a086');
-      rect(x - 14, y + 84, 28, 5, '#58705c');
-      block(x - 48, y + 3, 96, 58);
-    };
-
-    const rug = (x: number, y: number, w: number, h: number, c: string) => {
-      rect(x + 3, y + 4, w, h, '#a8947533');
-      rect(x, y, w, h, '#a6b194');
-      rect(x + 4, y + 4, w - 8, h - 8, c);
-      for (let i = x + 9; i < x + w - 9; i += 12) {
-        rect(i, y + 7, 4, 2, '#dbe0b7');
-        rect(i, y + h - 9, 4, 2, '#dbe0b7');
-      }
-    };
-
-    const sofa = (x: number, y: number, w: number, vertical = false) => {
-      if (vertical) {
-        rect(x + 4, y + 3, 34, w, '#73816a');
-        rect(x, y, 34, w - 4, '#8e9b7e');
-        rect(x, y, 7, w - 4, '#a4ad8b');
-        for (let yy = y + 8; yy < y + w - 4; yy += 28) {
-          rect(x + 8, yy, 22, 25, '#9ca789');
+        g.save();
+        if (hoverGrid.valid) {
+          // Valid placement = Green
+          g.fillStyle = 'rgba(34, 197, 94, 0.35)';
+          g.strokeStyle = '#22c55e';
+        } else {
+          // Blocked placement = Red
+          g.fillStyle = 'rgba(239, 68, 68, 0.45)';
+          g.strokeStyle = '#ef4444';
         }
-        rect(x, y - 4, 39, 8, '#a5af8f');
-        rect(x, y + w - 10, 39, 8, '#a5af8f');
-        block(x, y, 39, w);
-      } else {
-        rect(x + 3, y + 3, w, 36, '#71816c');
-        rect(x, y, w, 34, '#8b9b80');
-        rect(x, y, w, 9, '#b2bb99');
-        for (let xx = x + 9; xx < x + w - 5; xx += 36) {
-          rect(xx, y + 11, 32, 19, '#a1ad8d');
-        }
-        rect(x - 4, y, 9, 38, '#a9b595');
-        rect(x + w - 6, y, 9, 38, '#a9b595');
-        block(x, y, w, 38);
-      }
-    };
 
-    const shelf = (x: number, y: number, w: number) => {
-      rect(x, y, w, 46, '#9c7b54');
-      rect(x + 3, y + 3, w - 6, 40, '#c29e6d');
-      for (let row = 0; row < 2; row++) {
-        for (let i = 0; i < Math.floor(w / 9) - 1; i++) {
-          const xx = x + 6 + i * 9;
-          rect(xx, y + 6 + row * 20, 6, 14, ['#8e9d79', '#d1bf8a', '#a67e62', '#7f9490'][i % 4]);
-          rect(xx + 1, y + 8 + row * 20, 2, 1, '#e7d7ab');
-        }
-        rect(x + 2, y + 21 + row * 20, w - 4, 4, '#ad885c');
-      }
-      block(x, y, w, 46);
-    };
+        g.lineWidth = 2;
+        g.fillRect(px, py, pw, ph);
+        g.strokeRect(px + 1, py + 1, pw - 2, ph - 2);
 
-    // Parquet wooden floor fills viewport completely
-    rect(0, 0, W, H, '#cfb591');
-    for (let y = 87; y < H; y += 18) {
-      rect(0, y, W, 1, '#baa27d');
-      for (let x = (Math.floor(y / 18) % 2) * 40; x < W; x += 80) {
-        rect(x, y, 1, 18, '#baa27d');
-        if (x + 29 < W) rect(x + 13, y + 5, 16, 1, '#d8bf98');
+        // Draw preview silhouette
+        def.draw(g, px, py, pw, ph);
+        g.restore();
       }
     }
+  }, [isDecorating, hoverGrid, selectedCatalogItem, draggingItem, worldDim]);
 
-    // Top wall & windows
-    rect(0, 0, W, 86, '#d8d9bb');
-    rect(0, 0, W, 4, '#f5ebd0');
-    rect(0, 81, W, 9, '#a98a61');
-    rect(0, 81, W, 3, '#e5cba0');
-
-    for (let x = 34; x + 135 < W; x += 180) {
-      rect(x, 24, 136, 49, '#9ebaaa');
-      rect(x + 4, 28, 128, 38, '#bfd5bf');
-      rect(x + 8, 32, 26, 4, '#e1ebcd');
-      rect(x + 66, 25, 4, 46, '#ece9cd');
-      rect(x + 2, 66, 132, 5, '#dfe8ca');
-      rect(x - 4, 73, 144, 7, '#b89a6d');
-    }
-
-    const compact = W < 850;
-    const side = compact ? 28 : Math.min(245, W * 0.21);
-    const left = side;
-    const right = W - side;
-    const top = compact ? 150 : 160;
-    const workBottom = compact
-      ? Math.min(H - 430, top + 340)
-      : Math.max(top + 260, H - 210);
-
-    // 2-column desk arrangement requested by user:
-    // Column 1 (left): 4 desks for Huy, Tường, Phước, Toàn
-    // Column 2 (right): 3 desks for Thành, Long, Hiếu
-    const totalCols = 2;
-    const col1Count = 4;
-    const maxRows = 4;
-    const mainWidth = right - left;
-    const rowSpacing = Math.min(115, Math.max(88, (workBottom - top) / (maxRows - 1)));
-    const rugHeight = (maxRows - 1) * rowSpacing + 135;
-
-    rug(left - 7, top - 25, mainWidth + 14, Math.max(180, rugHeight), '#b9c3a4');
-
-    for (let i = 0; i < n; i++) {
-      const isCol1 = i < col1Count;
-      const c = isCol1 ? 0 : 1;
-      const r = isCol1 ? i : (i - col1Count);
-      const x = left + (mainWidth * (c + 0.5)) / totalCols;
-      const y = top + r * rowSpacing;
-      desk(x, y);
-      deskHomesRef.current.push({
-        x: Math.round(x / 16) * 16,
-        y: Math.round((y + 76) / 16) * 16
-      });
-    }
-
-    const newLabels: Array<{ text: string; left: string; top: string; visible: boolean }> = [
-      { text: 'THE WORKROOM', left: `${left + 15}px`, top: `${top - 53}px`, visible: true }
-    ];
-
-    if (!compact) {
-      // Left side: Meeting room & Quiet lounge
-      const lx = 25;
-      const ly = 161;
-      const lw = side - 50;
-      rug(lx, ly, lw, 210, '#bdc4aa');
-      shelf(lx + 12, 108, Math.min(120, lw - 24));
-
-      const tx = lx + lw / 2 - 47;
-      rect(tx, ly + 55, 94, 80, '#a28059');
-      rect(tx - 3, ly + 50, 94, 80, '#cba97c');
-      rect(tx + 24, ly + 64, 31, 21, '#74816e');
-      rect(tx + 28, ly + 68, 23, 13, '#a9baa0');
-      rect(tx + 17, ly + 104, 14, 9, '#ede0bb');
-      block(tx - 3, ly + 49, 98, 83);
-
-      for (const yy of [ly + 65, ly + 105]) {
-        rect(tx - 27, yy, 17, 25, '#8e9f82');
-        rect(tx + 104, yy, 17, 25, '#8e9f82');
-        block(tx - 27, yy, 17, 25);
-        block(tx + 104, yy, 17, 25);
-      }
-
-      const loungeY = Math.max(ly + 250, H - 285);
-      rug(lx, loungeY, lw, 140, '#b4b99d');
-      sofa(lx + 15, loungeY + 23, Math.min(110, lw - 45));
-      rect(lx + lw / 2 - 28, loungeY + 87, 56, 28, '#c7a77b');
-      rect(lx + lw / 2 - 12, loungeY + 92, 14, 10, '#f1e5be');
-      block(lx + lw / 2 - 28, loungeY + 87, 56, 28);
-      plant(lx + lw - 22, loungeY + 118);
-
-      // Right side: Coffee & Quiet zone
-      const rx = W - side + 25;
-      const rw = side - 50;
-      rug(rx, 161, rw, 210, '#c0c7ac');
-      rect(rx + 15, 201, 38, 71, '#e1d6b9');
-      rect(rx + 19, 182, 30, 22, '#adc9c0');
-      rect(rx + 23, 179, 22, 4, '#e0e8cb');
-      rect(rx + 21, 215, 26, 14, '#6f8276');
-      rect(rx + 25, 220, 4, 5, '#9bc3bb');
-      rect(rx + 39, 220, 4, 5, '#b98464');
-      block(rx + 15, 179, 38, 93);
-
-      rect(rx + rw - 69, 190, 55, 132, '#d4bc97');
-      rect(rx + rw - 72, 185, 61, 6, '#f4e6c9');
-      rect(rx + rw - 63, 198, 42, 30, '#728578');
-      rect(rx + rw - 58, 203, 32, 17, '#9aaba0');
-      rect(rx + rw - 62, 249, 41, 3, '#eedcb5');
-      block(rx + rw - 72, 185, 61, 138);
-      plant(rx + rw - 18, 351);
-
-      rug(rx, loungeY, rw, 140, '#b1bda0');
-      sofa(rx + 17, loungeY + 25, Math.min(111, rw - 35));
-      shelf(rx + 18, loungeY + 88, Math.min(130, rw - 36));
-      plant(rx + rw - 19, loungeY + 119);
-
-      plant(side - 11, Math.min(430, H - 180));
-      plant(W - side + 11, Math.min(430, H - 180));
-
-      newLabels.push(
-        { text: 'MEETING ROOM', left: '40px', top: '140px', visible: true },
-        { text: 'SLOW CORNER', left: '40px', top: `${Math.max(411, H - 307)}px`, visible: true },
-        { text: 'COFFEE & IDEAS', left: `${W - side + 38}px`, top: '140px', visible: true },
-        { text: 'QUIET ZONE', left: `${W - side + 38}px`, top: `${Math.max(411, H - 307)}px`, visible: true }
-      );
-    } else {
-      // Portrait layout
-      const lower = H - 285;
-      const half = W / 2;
-      rug(18, lower, half - 26, 140, '#b4b99e');
-      sofa(35, lower + 30, Math.max(75, half - 72));
-      rect(half / 2 - 20, lower + 95, 45, 24, '#c9a779');
-      block(half / 2 - 20, lower + 95, 45, 24);
-
-      rug(half + 8, lower, half - 26, 140, '#bec7ab');
-      rect(half + 28, lower + 31, 36, 63, '#e5d9bd');
-      rect(half + 32, lower + 13, 28, 21, '#b2cfc0');
-      rect(half + 34, lower + 44, 24, 11, '#788b7b');
-      block(half + 28, lower + 13, 36, 81);
-      shelf(half + 83, lower + 35, Math.max(36, half - 123));
-      plant(W - 34, lower + 120);
-    }
-
-    plant(22, 118);
-    plant(W - 24, 118);
-
-    setZoneLabels(newLabels);
-  }, []);
-
-  // 2. Resize and recalculate W, H, displayScale
+  // 4. Auto-fill Resize
   const resizeRoom = useCallback(() => {
     if (!viewportRef.current) return;
     const r = viewportRef.current.getBoundingClientRect();
@@ -345,8 +321,7 @@ export const PixelOfficeCanvas: React.FC<PixelOfficeCanvasProps> = ({
     const H = Math.ceil(r.height / displayScale);
 
     setWorldDim({ W, H, scale: displayScale });
-    drawRoom(W, H, Math.min(agents.length, 8));
-  }, [agents.length, drawRoom]);
+  }, []);
 
   useEffect(() => {
     resizeRoom();
@@ -354,7 +329,12 @@ export const PixelOfficeCanvas: React.FC<PixelOfficeCanvasProps> = ({
     return () => window.removeEventListener('resize', resizeRoom);
   }, [resizeRoom]);
 
-  // 3. Collision and Pathfinding (exact BFS from preview/pixel-office.js)
+  useEffect(() => {
+    renderRoom(worldDim.W, worldDim.H);
+    renderDecorOverlay();
+  }, [renderRoom, renderDecorOverlay, worldDim]);
+
+  // 5. Collision and Pathfinding
   const isBlocked = useCallback((x: number, y: number, W: number, H: number) => {
     if (x < 15 || x > W - 15 || y < 112 || y > H - 145) return true;
     return obstaclesRef.current.some(
@@ -433,30 +413,50 @@ export const PixelOfficeCanvas: React.FC<PixelOfficeCanvasProps> = ({
     return result;
   }, [isBlocked]);
 
-  const restStops = useCallback((W: number, H: number): Point[] => {
-    return W < 850
-      ? [
-          { x: W / 2, y: H - 185 },
-          { x: W / 2, y: 132 },
-          { x: W - 35, y: H / 2 }
-        ]
-      : [
-          { x: W - 240, y: 395 },
-          { x: 240, y: 395 },
-          { x: W / 2, y: H - 180 },
-          { x: W / 2, y: 132 }
-        ];
-  }, []);
+  // Social Rest Stops: extracted from placed furniture with isRestStop = true
+  const getSocialRestStops = useCallback((): Point[] => {
+    const stops: Point[] = [];
+    for (const item of furniture) {
+      const def = getFurnitureDef(item.type);
+      if (def?.isRestStop) {
+        stops.push({
+          x: (item.gx + Math.floor(def.w / 2)) * STEP,
+          y: (item.gy + def.h) * STEP + 8
+        });
+      }
+    }
+    if (stops.length === 0) {
+      stops.push({ x: worldDim.W / 2, y: worldDim.H - 180 });
+    }
+    return stops;
+  }, [furniture, worldDim]);
 
-  // 4. Sync actors map with agents list
+  // 6. Sync actors map with agents and assigned desk locations
   useEffect(() => {
     const list = agents.slice(0, 8);
     const prevActors = actorsRef.current;
     const nextActors = new Map<string, Actor>();
 
+    // Collect all desks
+    const desks = furniture.filter((f) => f.type.startsWith('desk'));
+
     list.forEach((ag, i) => {
-      const home = deskHomesRef.current[i] || { x: worldDim.W / 2, y: 220 };
-      const isBusy = ag.isBusy || tasks.some((t) => t.agent_id === ag.id && (t.status === 'RUNNING' || t.status === 'doing'));
+      // Find assigned desk or fallback
+      let assignedDesk = desks.find((d) => d.assignedAgentId === ag.id);
+      if (!assignedDesk && desks[i]) {
+        assignedDesk = desks[i];
+      }
+
+      const home: Point = assignedDesk
+        ? {
+            x: Math.round(assignedDesk.gx * STEP + 48),
+            y: Math.round(assignedDesk.gy * STEP + 72)
+          }
+        : { x: worldDim.W / 2, y: 220 };
+
+      const isBusy =
+        ag.isBusy ||
+        tasks.some((t) => t.agent_id === ag.id && (t.status === 'RUNNING' || t.status === 'doing'));
 
       const existing = prevActors.get(ag.id);
       if (existing) {
@@ -483,9 +483,9 @@ export const PixelOfficeCanvas: React.FC<PixelOfficeCanvasProps> = ({
     });
 
     actorsRef.current = nextActors;
-  }, [agents, tasks, worldDim.W]);
+  }, [agents, tasks, furniture, worldDim.W]);
 
-  // 5. Animation loop (tick)
+  // 7. Animation loop (Agent movement, Social wandering, Desk work)
   useEffect(() => {
     let animId: number;
 
@@ -493,16 +493,17 @@ export const PixelOfficeCanvas: React.FC<PixelOfficeCanvasProps> = ({
       const dt = Math.min((now - (lastTimeRef.current || now)) / 1000 || 0, 0.06);
       lastTimeRef.current = now;
 
-      if (!isMotionPaused && !document.hidden) {
+      if (!isMotionPaused && !document.hidden && !isDecorating) {
         const { W, H } = worldDim;
-        const stops = restStops(W, H);
+        const restSpots = getSocialRestStops();
 
         for (const a of actorsRef.current.values()) {
           if (a.busy) {
-            // When busy, agent heads home and sits at desk
+            // When busy: head directly to assigned desk and sit typing
             const dx = a.home.x - a.x;
             const dy = a.home.y - a.y;
             const dist = Math.hypot(dx, dy);
+
             if (dist > 5) {
               if (!a.path.length) {
                 a.path = routePath(a, a.home, W, H);
@@ -512,7 +513,7 @@ export const PixelOfficeCanvas: React.FC<PixelOfficeCanvasProps> = ({
                 const pdx = p.x - a.x;
                 const pdy = p.y - a.y;
                 const pd = Math.hypot(pdx, pdy);
-                const speed = 34;
+                const speed = 36;
                 if (pd < speed * dt) {
                   a.x = p.x;
                   a.y = p.y;
@@ -526,19 +527,19 @@ export const PixelOfficeCanvas: React.FC<PixelOfficeCanvasProps> = ({
             } else {
               a.x = a.home.x;
               a.y = a.home.y;
-              a.dir = 'up';
+              a.dir = 'up'; // Face monitor
               a.path = [];
             }
           } else {
-            // Idle wander
+            // Idle wander: alternate between desk and social rest spots (water cooler, sofa, books)
             if (a.wait > 0) {
               a.wait -= dt;
             } else {
               if (!a.path.length) {
-                a.destination = ((a.destination ?? -1) + 1);
+                a.destination = (a.destination ?? -1) + 1;
                 const goal =
                   a.destination % 2 === 0
-                    ? stops[(a.index + a.destination) % stops.length]
+                    ? restSpots[(a.index + a.destination) % restSpots.length]
                     : a.home;
                 a.path = routePath(a, goal, W, H);
                 if (!a.path.length) a.wait = 3;
@@ -548,12 +549,15 @@ export const PixelOfficeCanvas: React.FC<PixelOfficeCanvasProps> = ({
                 const dx = p.x - a.x;
                 const dy = p.y - a.y;
                 const d = Math.hypot(dx, dy);
-                const speed = 31 + (a.index % 3) * 3;
+                const speed = 30 + (a.index % 3) * 3;
                 if (d < speed * dt) {
                   a.x = p.x;
                   a.y = p.y;
                   a.path.shift();
-                  if (!a.path.length) a.wait = 5 + Math.random() * 6;
+                  if (!a.path.length) {
+                    // Rest pause: 5 to 9 seconds at destination
+                    a.wait = 5 + Math.random() * 4;
+                  }
                 } else {
                   a.x += (dx / d) * speed * dt;
                   a.y += (dy / d) * speed * dt;
@@ -575,14 +579,136 @@ export const PixelOfficeCanvas: React.FC<PixelOfficeCanvasProps> = ({
     return () => {
       cancelAnimationFrame(animId);
     };
-  }, [isMotionPaused, worldDim, restStops, routePath]);
+  }, [isMotionPaused, isDecorating, worldDim, getSocialRestStops, routePath]);
+
+  // 8. Mouse Events for Decoration Mode (Hover preview, click to place, drag existing items)
+  const handleStageMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDecorating || !overlayCanvasRef.current) return;
+    const r = overlayCanvasRef.current.getBoundingClientRect();
+    const mx = (e.clientX - r.left) / worldDim.scale;
+    const my = (e.clientY - r.top) / worldDim.scale;
+
+    const gx = Math.round(mx / STEP);
+    const gy = Math.round(my / STEP);
+
+    if (draggingItem) {
+      const def = getFurnitureDef(draggingItem.item.type);
+      const w = def?.w || 2;
+      const h = def?.h || 2;
+      const valid = isPlacementValid(gx, gy, w, h, draggingItem.item.id);
+      setHoverGrid({ gx, gy, valid });
+      setDraggingItem((prev) => (prev ? { ...prev, curGx: gx, curGy: gy } : null));
+    } else if (selectedCatalogItem) {
+      const valid = isPlacementValid(gx, gy, selectedCatalogItem.w, selectedCatalogItem.h);
+      setHoverGrid({ gx, gy, valid });
+    }
+  };
+
+  const handleStageMouseLeave = () => {
+    setHoverGrid(null);
+  };
+
+  const handleStageClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDecorating || !overlayCanvasRef.current) return;
+    const r = overlayCanvasRef.current.getBoundingClientRect();
+    const mx = (e.clientX - r.left) / worldDim.scale;
+    const my = (e.clientY - r.top) / worldDim.scale;
+
+    const gx = Math.round(mx / STEP);
+    const gy = Math.round(my / STEP);
+
+    // Case A: Placing a new catalog item
+    if (selectedCatalogItem) {
+      const valid = isPlacementValid(gx, gy, selectedCatalogItem.w, selectedCatalogItem.h);
+      if (valid) {
+        const newItem: PlacedFurniture = {
+          id: `item-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          type: selectedCatalogItem.type,
+          gx,
+          gy,
+          assignedAgentId: null,
+          variant: 0
+        };
+        onUpdateFurniture?.([...furniture, newItem]);
+        onSelectPlacedItem?.(newItem);
+      }
+      return;
+    }
+
+    // Case B: Selecting an existing placed item on floor
+    const clickedItem = [...furniture].reverse().find((item) => {
+      const def = getFurnitureDef(item.type);
+      if (!def) return false;
+      const px = item.gx * STEP;
+      const py = item.gy * STEP;
+      const pw = def.w * STEP;
+      const ph = def.h * STEP;
+      return mx >= px && mx <= px + pw && my >= py && my <= py + ph;
+    });
+
+    if (clickedItem) {
+      onSelectPlacedItem?.(clickedItem);
+    } else {
+      onSelectPlacedItem?.(null);
+    }
+  };
+
+  const handleStageMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDecorating || selectedCatalogItem || !overlayCanvasRef.current) return;
+    const r = overlayCanvasRef.current.getBoundingClientRect();
+    const mx = (e.clientX - r.left) / worldDim.scale;
+    const my = (e.clientY - r.top) / worldDim.scale;
+
+    // Check if clicking an existing item to start drag
+    const targetItem = [...furniture].reverse().find((item) => {
+      const def = getFurnitureDef(item.type);
+      if (!def) return false;
+      const px = item.gx * STEP;
+      const py = item.gy * STEP;
+      const pw = def.w * STEP;
+      const ph = def.h * STEP;
+      return mx >= px && mx <= px + pw && my >= py && my <= py + ph;
+    });
+
+    if (targetItem) {
+      onSelectPlacedItem?.(targetItem);
+      setDraggingItem({
+        item: targetItem,
+        startGx: targetItem.gx,
+        startGy: targetItem.gy,
+        curGx: targetItem.gx,
+        curGy: targetItem.gy
+      });
+    }
+  };
+
+  const handleStageMouseUp = () => {
+    if (draggingItem) {
+      const def = getFurnitureDef(draggingItem.item.type);
+      const w = def?.w || 2;
+      const h = def?.h || 2;
+      const valid = isPlacementValid(draggingItem.curGx, draggingItem.curGy, w, h, draggingItem.item.id);
+
+      if (valid && (draggingItem.curGx !== draggingItem.startGx || draggingItem.curGy !== draggingItem.startGy)) {
+        // Update moved item
+        const updated = furniture.map((f) =>
+          f.id === draggingItem.item.id
+            ? { ...f, gx: draggingItem.curGx, gy: draggingItem.curGy }
+            : f
+        );
+        onUpdateFurniture?.(updated);
+      }
+      setDraggingItem(null);
+      setHoverGrid(null);
+    }
+  };
 
   const actorsList = Array.from(actorsRef.current.values());
 
   return (
     <div
       ref={viewportRef}
-      className="world-viewport"
+      className={`world-viewport ${isDecorating ? 'mode-decorating' : ''}`}
       aria-label="Văn phòng pixel tương tác"
     >
       <div className="office pixel-room">
@@ -595,6 +721,11 @@ export const PixelOfficeCanvas: React.FC<PixelOfficeCanvasProps> = ({
             transform: `scale(${worldDim.scale})`,
             transformOrigin: '0 0'
           }}
+          onMouseMove={handleStageMouseMove}
+          onMouseLeave={handleStageMouseLeave}
+          onClick={handleStageClick}
+          onMouseDown={handleStageMouseDown}
+          onMouseUp={handleStageMouseUp}
         >
           {/* Main room procedural canvas */}
           <canvas
@@ -602,6 +733,22 @@ export const PixelOfficeCanvas: React.FC<PixelOfficeCanvasProps> = ({
             className="room-art"
             width={worldDim.W}
             height={worldDim.H}
+            aria-hidden="true"
+          />
+
+          {/* Decoration Grid & Hover Overlay Canvas */}
+          <canvas
+            ref={overlayCanvasRef}
+            className="room-decor-overlay"
+            width={worldDim.W}
+            height={worldDim.H}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              pointerEvents: 'none',
+              zIndex: 80
+            }}
             aria-hidden="true"
           />
 
@@ -613,11 +760,15 @@ export const PixelOfficeCanvas: React.FC<PixelOfficeCanvasProps> = ({
               const step = isMoving && Math.floor(Date.now() / 175) % 2 === 1;
 
               const agentTasks = tasks.filter((t) => t.agent_id === actor.agent.id);
-              const hasAttention = agentTasks.some((t) => t.status === 'INTERRUPTED' || t.status === 'ERROR');
+              const hasAttention = agentTasks.some(
+                (t) => t.status === 'INTERRUPTED' || t.status === 'ERROR'
+              );
               const hasRecentSuccess =
                 agentTasks.length > 0 &&
-                agentTasks[0]?.status === 'SUCCESS' &&
+                (agentTasks[0]?.status === 'SUCCESS' || agentTasks[0]?.status === 'success') &&
                 (!agentTasks[0]?.review_status || agentTasks[0]?.review_status === 'pending');
+
+              const isSeatedAtDesk = actor.busy && !isMoving;
 
               return (
                 <button
@@ -626,13 +777,14 @@ export const PixelOfficeCanvas: React.FC<PixelOfficeCanvasProps> = ({
                   style={{
                     left: `${actor.x}px`,
                     top: `${actor.y}px`,
-                    zIndex: Math.round(actor.y)
+                    zIndex: Math.round(actor.y),
+                    pointerEvents: isDecorating ? 'none' : 'auto'
                   }}
-                  onClick={() => onSelectAgent(actor.agent)}
-                  aria-label={`Giao việc cho ${actor.agent.name}`}
+                  onClick={() => !isDecorating && onSelectAgent(actor.agent)}
+                  aria-label={`Agent ${actor.agent.name}`}
                   title={`${actor.agent.name} — ${actor.agent.role}`}
                 >
-                  {/* Overhead Status Badges */}
+                  {/* Overhead Emotion & Status Badges */}
                   {actor.busy && (
                     <div className="agent-overhead-badge badge-working" title="Đang thực thi task...">
                       ⚡
@@ -653,6 +805,8 @@ export const PixelOfficeCanvas: React.FC<PixelOfficeCanvasProps> = ({
                     actor={actor}
                     dir={actor.dir}
                     step={step}
+                    isSeated={isSeatedAtDesk}
+                    isTyping={isSeatedAtDesk}
                   />
                   <span>{actor.agent.name}</span>
                 </button>
@@ -660,34 +814,21 @@ export const PixelOfficeCanvas: React.FC<PixelOfficeCanvasProps> = ({
             })}
           </div>
 
-          {/* Zone Labels */}
-          {zoneLabels.map((zl, idx) => (
-            <div
-              key={idx}
-              className="zone-label"
-              style={{
-                left: zl.left,
-                top: zl.top,
-                display: zl.visible ? 'block' : 'none'
-              }}
-            >
-              {zl.text}
-            </div>
-          ))}
-
-          <div className="map-caption">A LITTLE ROOM FOR BIG IDEAS</div>
+          <div className="map-caption">PIXEL OFFICE — A LITTLE ROOM FOR BIG IDEAS</div>
         </div>
       </div>
     </div>
   );
 };
 
-// Canvas subcomponent for single 32x40 sprite
+// Canvas subcomponent for single 32x40 chibi sprite
 const ActorSpriteCanvas: React.FC<{
   actor: Actor;
   dir: string;
   step: boolean;
-}> = ({ actor, dir, step }) => {
+  isSeated?: boolean;
+  isTyping?: boolean;
+}> = ({ actor, dir, step, isSeated = false, isTyping = false }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -696,14 +837,22 @@ const ActorSpriteCanvas: React.FC<{
       canvasRef.current,
       {
         index: actor.index,
-        agent: {
-          color: actor.agent.color || actor.agent.avatar?.clothesColor || '#2563eb'
-        }
+        agent: actor.agent
       },
       dir,
-      step
+      step,
+      { isSeated, isTyping }
     );
-  }, [actor.index, actor.agent.color, actor.agent.avatar?.clothesColor, dir, step]);
+  }, [
+    actor.index,
+    actor.agent,
+    actor.agent.avatar,
+    actor.agent.color,
+    dir,
+    step,
+    isSeated,
+    isTyping
+  ]);
 
   return <canvas ref={canvasRef} width={32} height={40} aria-hidden="true" />;
 };

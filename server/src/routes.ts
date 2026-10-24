@@ -521,3 +521,74 @@ apiRouter.post('/utils/validate-folder', (req: Request, res: Response) => {
   const result = validateFolderPath(folderPath);
   res.json(result);
 });
+
+// 17. Get office decoration layout
+apiRouter.get('/layout', (req: Request, res: Response) => {
+  try {
+    const row = db.prepare('SELECT * FROM office_layouts WHERE id = ?').get('default-office') as {
+      id: string;
+      layout: string;
+      version: number;
+      updated_at: number;
+    } | undefined;
+
+    if (!row) {
+      res.json({ layout: null, version: 1, updated_at: Date.now() });
+      return;
+    }
+
+    res.json({
+      layout: JSON.parse(row.layout),
+      version: row.version,
+      updated_at: row.updated_at
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: `Lỗi tải bố cục phòng: ${err.message}` });
+  }
+});
+
+// 18. Save office decoration layout with optimistic concurrency / version checking
+apiRouter.put('/layout', (req: Request, res: Response) => {
+  try {
+    const { layout, version } = req.body;
+    if (!layout || !Array.isArray(layout)) {
+      res.status(400).json({ error: 'Dữ liệu bố cục không hợp lệ (cần danh sách đồ nội thất).' });
+      return;
+    }
+
+    const current = db.prepare('SELECT version FROM office_layouts WHERE id = ?').get('default-office') as {
+      version: number;
+    } | undefined;
+
+    // Check version conflict
+    if (current && version !== undefined && version < current.version) {
+      res.status(409).json({
+        conflict: true,
+        error: 'Bố cục phòng đã được cập nhật từ một phiên làm việc khác. Vui lòng tải lại trang.',
+        currentVersion: current.version
+      });
+      return;
+    }
+
+    const nextVersion = current ? current.version + 1 : 1;
+    const now = Date.now();
+
+    db.prepare(`
+      INSERT INTO office_layouts (id, layout, version, updated_at)
+      VALUES ('default-office', ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        layout = excluded.layout,
+        version = excluded.version,
+        updated_at = excluded.updated_at
+    `).run(JSON.stringify(layout), nextVersion, now);
+
+    res.json({
+      success: true,
+      version: nextVersion,
+      updated_at: now
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: `Lỗi lưu bố cục phòng: ${err.message}` });
+  }
+});
+

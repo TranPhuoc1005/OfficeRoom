@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { Agent, Task } from './types';
 import { FolderBrowserModal } from './FolderBrowserModal';
+import { AgentAppearanceTab } from './AgentAppearanceTab';
+import { drawAgentSprite } from './agent-sprite';
 
 interface AgentModalProps {
   agent: Agent;
@@ -27,13 +29,25 @@ export const AgentModal: React.FC<AgentModalProps> = ({
   const [folderInput, setFolderInput] = useState(agent.folder_path);
   const [isEditingFolder, setIsEditingFolder] = useState(false);
   const [showFolderBrowser, setShowFolderBrowser] = useState(false);
-  const [activeTab, setActiveTab] = useState<'task' | 'history' | 'settings'>('task');
+  const [activeTab, setActiveTab] = useState<'task' | 'appearance' | 'history' | 'settings'>('task');
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+
+  const headerCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    if (headerCanvasRef.current) {
+      drawAgentSprite(
+        headerCanvasRef.current,
+        { agent },
+        'down',
+        false
+      );
+    }
+  }, [agent, agent.avatar]);
 
   useEffect(() => {
     setFolderInput(agent.folder_path);
   }, [agent.folder_path]);
-
 
   const handleSaveManualFolder = async () => {
     await onUpdateAgent({ folder_path: folderInput });
@@ -55,13 +69,17 @@ export const AgentModal: React.FC<AgentModalProps> = ({
         <div className="modal-header">
           <div className="agent-badge">
             <div
-              className="avatar-circle"
+              className="avatar-chibi-badge"
               style={{
-                backgroundColor: agent.avatar.clothesColor,
                 borderColor: agent.isBusy ? '#38bdf8' : '#475569'
               }}
             >
-              <span className="avatar-letter">{agent.name.charAt(0)}</span>
+              <canvas
+                ref={headerCanvasRef}
+                width={32}
+                height={40}
+                style={{ width: '40px', height: '50px', imageRendering: 'pixelated' }}
+              />
               {agent.isBusy && <span className="status-dot working" title="Đang làm việc" />}
             </div>
             <div>
@@ -130,6 +148,12 @@ export const AgentModal: React.FC<AgentModalProps> = ({
             onClick={() => setActiveTab('task')}
           >
             ⚡ Giao Task & Tiến độ
+          </button>
+          <button
+            className={`tab-btn ${activeTab === 'appearance' ? 'active' : ''}`}
+            onClick={() => setActiveTab('appearance')}
+          >
+            🎨 Ngoại hình
           </button>
           <button
             className={`tab-btn ${activeTab === 'history' ? 'active' : ''}`}
@@ -259,6 +283,32 @@ export const AgentModal: React.FC<AgentModalProps> = ({
                   )}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* TAB: APPEARANCE CUSTOMIZATION */}
+          {activeTab === 'appearance' && (
+            <div className="tab-pane">
+              <AgentAppearanceTab
+                initialAvatar={
+                  agent.avatar || {
+                    skinColor: '#edbb90',
+                    hairStyle: 'short',
+                    hairColor: '#343f42',
+                    clothesColor: agent.color || '#2563eb',
+                    accessory: 'none'
+                  }
+                }
+                agentName={agent.name}
+                clothesColorFallback={agent.color || '#2563eb'}
+                isBusy={agent.isBusy}
+                onSave={async (newAvatar) => {
+                  await onUpdateAgent({
+                    avatar: newAvatar,
+                    color: newAvatar.clothesColor
+                  });
+                }}
+              />
             </div>
           )}
 

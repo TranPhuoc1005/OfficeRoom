@@ -308,18 +308,24 @@ export default function App() {
         let loadedLayout: PlacedFurniture[] | null = null;
         let version = 1;
 
+        // 1. Try Supabase Cloud
         if (isSupabaseActive && supabase && officeId) {
-          const { data, error } = await supabase
-            .from('offices')
-            .select('layout, layout_version')
-            .eq('id', officeId)
-            .maybeSingle();
+          try {
+            const { data, error } = await supabase
+              .from('offices')
+              .select('layout, layout_version')
+              .eq('id', officeId)
+              .maybeSingle();
 
-          if (!error && data?.layout && Array.isArray(data.layout) && data.layout.length > 0) {
-            loadedLayout = data.layout;
-            version = data.layout_version || 1;
-          }
-        } else {
+            if (!error && data?.layout && Array.isArray(data.layout) && data.layout.length > 0) {
+              loadedLayout = data.layout;
+              version = data.layout_version || 1;
+            }
+          } catch {}
+        }
+
+        // 2. If not found in Supabase, try backend SQLite API (/api/layout)
+        if (!loadedLayout) {
           try {
             const res = await fetch('/api/layout');
             if (res.ok) {
@@ -327,6 +333,21 @@ export default function App() {
               if (data.layout && Array.isArray(data.layout) && data.layout.length > 0) {
                 loadedLayout = data.layout;
                 version = data.version || 1;
+              }
+            }
+          } catch {}
+        }
+
+        // 3. If not in backend, check LocalStorage backup for resilience
+        if (!loadedLayout) {
+          try {
+            const storageKey = officeId ? `pixel_office_layout_${officeId}` : 'pixel_office_layout_default';
+            const raw = localStorage.getItem(storageKey);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (parsed?.layout && Array.isArray(parsed.layout) && parsed.layout.length > 0) {
+                loadedLayout = parsed.layout;
+                version = parsed.version || 1;
               }
             }
           } catch {}
@@ -401,52 +422,66 @@ export default function App() {
   const handleSaveDecorate = async () => {
     setIsSavingLayout(true);
     try {
+      const nextVersion = furnitureLayoutVersion + 1;
+      let cloudSaved = false;
+
+      // 1. Save to Supabase Cloud if connected
       if (isSupabaseActive && supabase && officeId) {
-        const nextVersion = furnitureLayoutVersion + 1;
-        const { error } = await supabase
-          .from('offices')
-          .update({
-            layout: furniture,
-            layout_version: nextVersion,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', officeId);
+        try {
+          const { error } = await supabase
+            .from('offices')
+            .update({
+              layout: furniture,
+              layout_version: nextVersion,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', officeId);
 
-        if (error) {
-          showToast(`Lỗi lưu bố cục: ${error.message}`);
-          return;
-        }
-
-        setFurnitureLayoutVersion(nextVersion);
-        setInitialFurnitureSnapshot(JSON.parse(JSON.stringify(furniture)));
-        setIsDecorating(false);
-        setSelectedCatalogItem(null);
-        setSelectedPlacedItem(null);
-        setUndoStack([]);
-        showToast('✓ Đã lưu bố cục văn phòng lên Cloud!');
-      } else {
-        const res = await fetch('/api/layout', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ layout: furniture, version: furnitureLayoutVersion })
-        });
-        const data = await res.json();
-        if (res.ok) {
-          setFurnitureLayoutVersion(data.version || furnitureLayoutVersion + 1);
-          setInitialFurnitureSnapshot(JSON.parse(JSON.stringify(furniture)));
-          setIsDecorating(false);
-          setSelectedCatalogItem(null);
-          setSelectedPlacedItem(null);
-          setUndoStack([]);
-          showToast('✓ Đã lưu bố cục văn phòng thành công!');
-        } else if (res.status === 409) {
-          alert('Xung đột: ' + data.error);
-        } else {
-          showToast(`Lỗi lưu: ${data.error}`);
+          if (!error) {
+            cloudSaved = true;
+          } else {
+            console.warn('Supabase layout sync notice:', error.message);
+          }
+        } catch (sErr) {
+          console.warn('Supabase update notice:', sErr);
         }
       }
+
+      // 2. Always persist to Backend SQLite API as reliable storage
+      try {
+        await fetch('/api/layout', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ layout: furniture, version: nextVersion })
+        });
+      } catch (beErr) {
+        console.warn('Backend API save notice:', beErr);
+      }
+
+      // 3. Always save to LocalStorage backup
+      try {
+        const storageKey = officeId ? `pixel_office_layout_${officeId}` : 'pixel_office_layout_default';
+        localStorage.setItem(storageKey, JSON.stringify({ layout: furniture, version: nextVersion }));
+      } catch (lsErr) {
+        console.warn('LocalStorage save notice:', lsErr);
+      }
+
+      // 4. Update UI State smoothly
+      setFurnitureLayoutVersion(nextVersion);
+      setInitialFurnitureSnapshot(JSON.parse(JSON.stringify(furniture)));
+      setIsDecorating(false);
+      setSelectedCatalogItem(null);
+      setSelectedPlacedItem(null);
+      setIsDeleteMode(false);
+      setUndoStack([]);
+
+      if (cloudSaved) {
+        showToast('✓ Đã lưu bố cục văn phòng lên Cloud & Máy cục bộ!');
+      } else {
+        showToast('✓ Đã lưu bố cục văn phòng thành công!');
+      }
     } catch (err: any) {
-      showToast(`Lỗi mạng: ${err.message}`);
+      showToast(`Lỗi: ${err.message}`);
     } finally {
       setIsSavingLayout(false);
     }

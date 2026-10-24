@@ -1,0 +1,23 @@
+{
+  "design_version": 4,
+  "name": "Pixel Office Cozy Edition",
+  "sha256": {
+    "ASSET_BRIEFS.md": "d072650ca2237c6de4320467501ef2e171cedf0ace39a0ac5e3444ed0408e2fc",
+    "DESIGN_GUIDE.md": "b9c7687380c7d7474002c9206a495382c32d1331b092060f1431604be879eb95",
+    "INTEGRATION.md": "df5920a7794dd2f8f1975e33e977897de75e5e21323c64abc55e37555a8c823e",
+    "PROMPT_CHO_ANTIGRAVITY.txt": "7c0723f98d17b652a577167641e140b9d310d8070fe54ef029a2ce36c05c1950",
+    "QA.md": "aee055f6157e876f39b9de2c6a4c531f003fef10e5a00b298c722768a92f8531",
+    "README.md": "4578c79c3c156b5ce251701d34607693bf99870535aa2d009bc9b6dd89b95f82",
+    "components/illustrated-sprites.js": "dbd0ca4afa0d0a10046738b1daba3a04ab7bd782accbfef0cea10050ad9ffdec",
+    "preview/assets/atlas.json": "8a8fb1dd8832dc248befae1deaed8e3e040a35af57bcbabf485d30abd504f090",
+    "preview/assets/characters-atlas.png": "3a45bb4b3b802e25070b550cb582c6f34926d3504883aa49827be70b10cd068b",
+    "preview/assets/entrance.png": "bc42000e1325d26cd76cfd371f242d3a812c353a8a531dd09b00df377a44b202",
+    "preview/assets/office-interior.png": "9663fd95007501304686c3f7e393d35c51643cea34293b6f78b880bac0f3eea2",
+    "preview/cozy-office.js": "e26b506cc6174f0ef3fdefeca7ea9329100cf6777521c6ba27ae60043032138e",
+    "preview/cozy.css": "076792de204e418ad2faf04061e4946952c328b54c758f261e2564d0cdc15fa1",
+    "preview/game-layout.css": "0e02a18790c54f26afaa4150bf1747bba3ee51230909b987bb76a753aa499de6",
+    "preview/game-ui.js": "47a34bd51734479f15f67812a637b1ca43a64fc35978a985b8eb6437a719c4b5",
+    "preview/index.html": "0a7e9296f16940a40334eacb5d5f31ebb8004903e5e55573a89aea747581ec80",
+    "reference/login-concept.png": "a9343ca3768bb23c765743e96aeae9a5c5d167cf5ba2d5794a27c7685bea9793"
+  }
+}

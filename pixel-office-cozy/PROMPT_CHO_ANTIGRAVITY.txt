@@ -1,0 +1,15 @@
+Thiết kế lại toàn bộ frontend Pixel Office theo Cozy Edition trong folder pixel-office-cozy này, đặc biệt dùng đúng bộ nhân vật mới. Đây là bản thiết kế mới nhất, thay thế các gói layout trước.
+
+Đọc README.md, DESIGN_GUIDE.md, INTEGRATION.md, QA.md và toàn bộ preview/ trước khi sửa. Đây là yêu cầu triển khai, không chỉ lập kế hoạch.
+
+1. Lấy đúng phong cách tranh pixel minh họa ấm, nhiều chi tiết, gỗ/kem/xanh lá, ánh nắng và cây xanh. Dùng PNG trong preview/assets; không tự vẽ lại thành các hình chữ nhật thô, emoji, icon hoặc quay về sprite cũ.
+2. Thay màn hình đăng nhập bằng lễ tân như preview: nền entrance.png không có chữ/form baked-in; form HTML thật đặt phía trên. Giữ Supabase Auth hiện có cho đăng nhập/đăng ký/quên mật khẩu. KHÔNG dùng click-bypass/readonly/demo của preview trong app thật. Vào văn phòng chỉ sau xác thực thật, session hợp lệ thì vào thẳng.
+3. Văn phòng dùng office-interior.png làm preset/art reference và nhân vật rời từ characters-atlas.png. Đọc atlas.json hoặc dùng components/illustrated-sprites.js. Nhân vật/portrait/avatar cùng một bộ; lưu spriteVariant ổn định theo agent ID. Không thay tên, folder và lịch sử khi đổi hình.
+4. Giữ văn phòng phủ toàn khung ngay khi mở, không zoom, không pan, không fit. Giữ dock dưới, panel giấy mở từ dưới và không để sprite đè panel. Port bố cục responsive từ source; không đặt sidebar/dashboard lớn phía trên.
+5. Đồng bộ visual cho Đội agent, form agent/chọn ngoại hình, task board/detail, lịch sử, cài đặt, trạng thái và thông báo. Giữ chức năng thật đang có và ánh xạ nút vào API/store hiện tại. Không đưa luồng prompt thủ công hoặc localStorage demo làm nguồn dữ liệu chính.
+6. GIỮ nguyên backend, Vercel/Supabase, Auth/RLS, database và mọi agent/project/folder/conversation/history. Giữ runner/CLI, stream, cancel, tạo phiên mới và xử lý INTERRUPTED. Không seed đè/xóa database, không thay đăng nhập CLI, billing hoặc quyền truy cập vì đổi UI.
+7. Animation trạng thái lấy từ backend thật; không giả task xong bằng timer. Bản mẫu chỉ có pose front/back và hai pose nghiêng, dùng flip/gait; không tuyên bố đã có đầy đủ animation đa hướng hay đồng bộ runner nếu chưa test. Giữ một animation loop và cleanup khi unmount.
+8. Nếu app có trang trí/kéo thả nội thất, giữ tính năng và dữ liệu đó. Tranh nền có bàn/đồ baked-in; dùng làm preset/reference, không xóa editor hoặc giả các đồ baked-in là đồ kéo thả. Nêu rõ nếu cần chuẩn bị thêm asset nội thất rời.
+9. Kiểm tra desktop và mobile: form không bị cắt, trang không tràn, nhân vật bấm đúng agent sau resize, không lẫn avatar, panel không bị sprite đè; đổi ngoại hình rồi refresh vẫn đúng. Kiểm tra task chỉ đọc qua CLI thật và Auth thật. Báo trung thực phần chưa test.
+
+Triển khai trong frontend hiện tại, tái sử dụng framework đang có. Hoàn tất chạy app và cung cấp URL local/preview tương ứng. Báo file đã sửa, feature được giữ, kiểm tra đã chạy và giới hạn còn lại. Chưa tự mua gói/dịch vụ hoặc đổi hạ tầng vì thay thiết kế.

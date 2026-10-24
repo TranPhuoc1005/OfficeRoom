@@ -4,10 +4,11 @@ import { supabase } from './supabase';
 interface AuthModalProps {
   isOpen: boolean;
   onSuccess: () => void;
+  onClose?: () => void;
   onUseLocalMode?: () => void;
 }
 
-export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onSuccess, onUseLocalMode }) => {
+export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onSuccess, onClose, onUseLocalMode }) => {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('tranphuoc1005@gmail.com');
   const [password, setPassword] = useState('');
@@ -58,27 +59,69 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onSuccess, onUseLo
   };
 
   return (
-    <div className="modal-backdrop" style={{ zIndex: 9999 }}>
+    <div
+      className="modal-backdrop"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        width: '100vw',
+        height: '100vh',
+        backgroundColor: 'rgba(0, 0, 0, 0.65)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 99999
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && onClose) {
+          onClose();
+        }
+      }}
+    >
       <div
         className="modal-card"
         style={{
-          maxWidth: '420px',
-          padding: '24px',
+          position: 'relative',
+          maxWidth: '430px',
+          width: 'calc(100% - 32px)',
+          padding: '28px 24px',
           background: 'var(--panel-bg, #fffbf0)',
           border: '3px solid var(--border, #2d3748)',
-          boxShadow: '6px 6px 0px rgba(0,0,0,0.18)',
-          borderRadius: '8px'
+          boxShadow: '8px 8px 0px rgba(0,0,0,0.25)',
+          borderRadius: '12px',
+          boxSizing: 'border-box'
         }}
       >
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              position: 'absolute',
+              top: '14px',
+              right: '16px',
+              background: 'none',
+              border: 'none',
+              fontSize: '20px',
+              cursor: 'pointer',
+              color: '#64748b'
+            }}
+            title="Đóng"
+          >
+            ✕
+          </button>
+        )}
+
         <div style={{ textAlign: 'center', marginBottom: '18px' }}>
-          <div style={{ fontSize: '28px', marginBottom: '6px' }}>🏢</div>
+          <div style={{ fontSize: '32px', marginBottom: '6px' }}>🏢</div>
           <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: 'var(--ink, #1a202c)', margin: 0 }}>
             {isSignUp ? 'Tạo Văn Phòng Mới' : 'Đăng Nhập Pixel Office'}
           </h2>
           <p style={{ fontSize: '13px', color: '#64748b', marginTop: '6px' }}>
             {isSignUp
               ? 'Mỗi tài khoản sở hữu một văn phòng riêng, đồng bộ đa thiết bị.'
-              : 'Đăng nhập để xem đội ngũ agent, dự án và lịch sử của bạn.'}
+              : 'Đăng nhập để xem đội ngũ 7 agent, dự án và kết nối Windows Runner.'}
           </p>
         </div>
 

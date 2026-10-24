@@ -24,7 +24,24 @@ export const ProjectSelectModal: React.FC<ProjectSelectModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="modal-backdrop" style={{ zIndex: 9999 }}>
+    <div
+      className="modal-backdrop"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        width: '100vw',
+        height: '100vh',
+        backgroundColor: 'rgba(0, 0, 0, 0.65)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 99999
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
       <div
         className="modal-card"
         style={{

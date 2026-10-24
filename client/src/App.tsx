@@ -2199,6 +2199,7 @@ export default function App() {
       {/* AUTH MODAL */}
       <AuthModal
         isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
         onSuccess={() => {
           setIsAuthModalOpen(false);
           getOrCreateOfficeId().then((oid) => {

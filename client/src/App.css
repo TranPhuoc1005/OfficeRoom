@@ -1799,4 +1799,45 @@ input[type=color] {
   to { transform: scale(1.1); opacity: 1; }
 }
 
+/* ---------------------------------------------------- */
+/* MODAL BACKDROP & CARD (Auth, Runner, Project Modals) */
+/* ---------------------------------------------------- */
+.modal-backdrop {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background: rgba(0, 0, 0, 0.65) !important;
+  backdrop-filter: blur(4px) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 99999 !important;
+  pointer-events: auto !important;
+}
+
+.modal-card {
+  position: relative !important;
+  background: var(--panel-bg, #fffbf0) !important;
+  border: 3px solid var(--border, #2d3748) !important;
+  box-shadow: 8px 8px 0px rgba(0, 0, 0, 0.28) !important;
+  border-radius: 12px !important;
+  box-sizing: border-box !important;
+  max-height: 92vh !important;
+  overflow-y: auto !important;
+  animation: modalCardPop 0.18s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+@keyframes modalCardPop {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+
 

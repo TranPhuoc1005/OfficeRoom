@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { Agent, Task } from './types';
 import { FolderBrowserModal } from './FolderBrowserModal';
 import { AgentAppearanceTab } from './AgentAppearanceTab';
-import { drawAgentSprite } from './agent-sprite';
+import { drawIllustratedPortrait, getAgentVariant } from './illustrated-sprites';
 
 interface AgentModalProps {
   agent: Agent;
@@ -36,14 +36,12 @@ export const AgentModal: React.FC<AgentModalProps> = ({
 
   useEffect(() => {
     if (headerCanvasRef.current) {
-      drawAgentSprite(
+      drawIllustratedPortrait(
         headerCanvasRef.current,
-        { agent },
-        'down',
-        false
+        getAgentVariant(agent)
       );
     }
-  }, [agent, agent.avatar]);
+  }, [agent, agent.avatar, agent.spriteVariant]);
 
   useEffect(() => {
     setFolderInput(agent.folder_path);
@@ -76,9 +74,9 @@ export const AgentModal: React.FC<AgentModalProps> = ({
             >
               <canvas
                 ref={headerCanvasRef}
-                width={32}
-                height={40}
-                style={{ width: '40px', height: '50px', imageRendering: 'pixelated' }}
+                width={256}
+                height={256}
+                style={{ width: '48px', height: '48px', objectFit: 'contain' }}
               />
               {agent.isBusy && <span className="status-dot working" title="Đang làm việc" />}
             </div>

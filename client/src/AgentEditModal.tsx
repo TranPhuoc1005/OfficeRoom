@@ -154,10 +154,10 @@ export const AgentEditModal: React.FC<AgentEditModalProps> = ({
               clothesColorFallback={color}
               onSave={async (newAvatar) => {
                 setAvatar(newAvatar);
-                setColor(newAvatar.clothesColor);
+                setColor(newAvatar.clothesColor || color);
                 await onSave({
                   avatar: newAvatar,
-                  color: newAvatar.clothesColor
+                  color: newAvatar.clothesColor || color
                 });
               }}
             />

@@ -1,9 +1,10 @@
 export interface AgentAvatar {
-  skinColor: string;
-  hairStyle: string;
-  hairColor: string;
-  clothesColor: string;
+  skinColor?: string;
+  hairStyle?: string;
+  hairColor?: string;
+  clothesColor?: string;
   accessory?: string;
+  spriteVariant?: number;
 }
 
 export interface Agent {
@@ -13,6 +14,7 @@ export interface Agent {
   system_instructions: string;
   brief?: string;
   color?: string;
+  spriteVariant?: number;
   folder_path: string;
   conversation_id: string | null;
   avatar: AgentAvatar;

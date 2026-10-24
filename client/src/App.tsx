@@ -2,7 +2,6 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import type { Agent, Task } from './types';
 import { PixelOfficeCanvas } from './PixelOfficeCanvas';
 import { FolderBrowserModal } from './FolderBrowserModal';
-import { drawAgentSprite } from './agent-sprite';
 import { getDefaultOfficeFurniture } from './furniture-data';
 import type { PlacedFurniture, FurnitureDefinition } from './furniture-data';
 import { FurnitureCatalogDock } from './FurnitureCatalogDock';
@@ -14,10 +13,12 @@ import {
   getOrCreateOfficeId
 } from './supabase';
 import type { RunnerInfo, ProjectInfo } from './supabase';
-import { AuthModal } from './AuthModal';
+import { ReceptionScreen } from './ReceptionScreen';
 import { RunnerModal } from './RunnerModal';
 import { ProjectSelectModal } from './ProjectSelectModal';
+import { drawIllustratedPortrait, getAgentVariant } from './illustrated-sprites';
 import './App.css';
+import './cozy.css';
 
 type GameView = 'office' | 'team' | 'tasks' | 'history' | 'settings';
 
@@ -1386,56 +1387,33 @@ export default function App() {
         />
       </section>
 
-      {/* LOGIN PROMPT BANNER (Hiển thị khi mở website trên Vercel / máy khác chưa đăng nhập) */}
-      {isSupabaseActive && !authSession && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            background: 'rgba(255, 251, 240, 0.96)',
-            padding: '24px 32px',
-            borderRadius: '12px',
-            border: '3px solid #2d3748',
-            boxShadow: '6px 6px 0px rgba(0, 0, 0, 0.25)',
-            textAlign: 'center',
-            zIndex: 90,
-            maxWidth: '380px',
-            width: '90%'
-          }}
-        >
-          <div style={{ fontSize: '36px', marginBottom: '8px' }}>🏢</div>
-          <h2 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 'bold', color: '#1a202c' }}>
-            Pixel Office Cloud
-          </h2>
-          <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: '#64748b', lineHeight: '1.5' }}>
-            Vui lòng đăng nhập để mở văn phòng, tải 7 Agent và kết nối với máy Windows Runner của bạn.
-          </p>
-          <button
-            className="primary"
-            style={{
-              padding: '10px 24px',
-              fontSize: '14px',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              boxShadow: '3px 3px 0px #1e293b'
-            }}
-            onClick={() => setIsAuthModalOpen(true)}
-          >
-            🔑 Đăng nhập văn phòng
-          </button>
-        </div>
-      )}
-
-      {/* 2. TOP BRAND TITLE */}
+      {/* 2. TOP BRAND TITLE & COZY BANNER */}
       <div className="world-title">
         <div className="studio-mark">ao<span>✦</span></div>
         <div>
-          <div className="eyebrow">YOUR VIRTUAL WORKPLACE / 01</div>
-          <h1>The Workroom<span>.</span></h1>
-          <div className="world-sub">Một không gian. Cả đội của bạn.</div>
+          <div className="eyebrow">MAKE ROOM FOR GOOD WORK</div>
+          <h1>Pixel Office<span>.</span></h1>
+          <div className="world-sub">Một ngày đẹp để cùng nhau làm việc.</div>
         </div>
+      </div>
+
+      {/* TOP ACTIONS (Lễ tân) */}
+      <div className="office-top-actions">
+        <button
+          type="button"
+          id="returnReception"
+          onClick={() => setIsAuthModalOpen(true)}
+          title="Mở màn hình lễ tân và tài khoản"
+        >
+          ⌂ Lễ tân
+        </button>
+      </div>
+
+      {/* COZY TUTORIAL TOOLTIP */}
+      <div className="cozy-tutorial" id="cozyTip">
+        <b>✦ Xin chào!</b>
+        <span>Bấm một nhân vật để giao việc.</span>
+        <span className="tip-detail">Cả đội đang chờ ý tưởng của bạn.</span>
       </div>
 
       {/* 2b. ACTIVE TASK HUD BANNER (Hiển thị nổi bật khi có Agent đang chạy) */}
@@ -2587,14 +2565,17 @@ export default function App() {
         </dialog>
       )}
 
-      {/* AUTH MODAL */}
-      <AuthModal
+      {/* COZY RECEPTION SCREEN (Entrance + Real Supabase Auth) */}
+      <ReceptionScreen
         isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
+        onClose={authSession || isLocalOnlyMode ? () => setIsAuthModalOpen(false) : undefined}
         onSuccess={() => {
           setIsAuthModalOpen(false);
           getOrCreateOfficeId().then((oid) => {
             if (oid) setOfficeId(oid);
+          });
+          loadAgents().then((ag) => {
+            if (ag) loadAllTasks(ag);
           });
         }}
         onUseLocalMode={() => {
@@ -2735,24 +2716,32 @@ export default function App() {
   );
 }
 
-// Chibi Portrait Component for team cards / lists
-const ChibiPortrait: React.FC<{ index: number; agent: Agent }> = ({ index, agent }) => {
+// Illustrated Portrait Component for team cards / lists / badges
+const ChibiPortrait: React.FC<{ index?: number; agent: Agent }> = ({ agent }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
     if (!canvasRef.current) return;
-    drawAgentSprite(
+    drawIllustratedPortrait(
       canvasRef.current,
-      {
-        index,
-        agent
-      },
-      'down',
-      0
+      getAgentVariant(agent)
     );
-  }, [index, agent, agent.avatar, agent.color]);
+  }, [agent, agent.avatar, agent.spriteVariant]);
 
-  return <canvas ref={canvasRef} width={32} height={40} aria-hidden="true" />;
+  return (
+    <canvas
+      ref={canvasRef}
+      width={256}
+      height={256}
+      aria-hidden="true"
+      style={{
+        width: '100%',
+        height: '100%',
+        objectFit: 'contain',
+        display: 'block'
+      }}
+    />
+  );
 };
 
 // Kanban Task Card Component

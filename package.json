@@ -1,0 +1,20 @@
+{
+  "name": "pixel-office",
+  "version": "1.0.0",
+  "description": "Local Pixel Office with Antigravity CLI",
+  "scripts": {
+    "server": "npm --prefix server run dev",
+    "client": "npm --prefix client run dev",
+    "runner": "npm --prefix runner start",
+    "runner:pair": "npm --prefix runner run pair",
+    "runner:add-folder": "npm --prefix runner run add-folder",
+    "db:migrate": "tsx scripts/migrate-to-supabase.ts",
+    "db:migrate:dry-run": "tsx scripts/migrate-to-supabase.ts --dry-run",
+    "build": "npm --prefix server run build && npm --prefix client run build"
+  },
+  "devDependencies": {
+    "@supabase/supabase-js": "^2.118.0",
+    "dotenv": "^18.0.9",
+    "tsx": "^4.23.15"
+  }
+}

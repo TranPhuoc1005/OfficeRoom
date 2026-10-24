@@ -1,0 +1,14 @@
+Thay giao diện frontend của Pixel Office hiện tại bằng layout tham chiếu trong folder chatgpt-ui-reference này.
+
+Đây là yêu cầu triển khai, hãy sửa code và chạy kiểm tra, không chỉ lập kế hoạch.
+
+1. Đọc README.md và INTEGRATION.md, sau đó đọc toàn bộ preview/index.html, preview/pixel-office.js và styles/layout.css. Dùng source làm chuẩn thiết kế; không cần truy cập website ChatGPT hay localhost của người khác.
+2. Giữ bố cục, bảng màu kem/xanh sage, sidebar, typography, các thẻ thống kê, văn phòng pixel, nhân vật chibi, danh sách agent bên phải và bảng công việc bên dưới giống bản tham chiếu. Không tự thiết kế lại hoặc thay bằng giao diện tối/neon. Giữ responsive.
+3. Port layout thành các component React phù hợp với code hiện có. Dùng hình văn phòng và sprite trong source tham chiếu; có thể dùng components/agent-sprite.js để tái sử dụng bộ vẽ nhân vật.
+4. GIỮ NGUYÊN backend, SQLite, Antigravity CLI, cấu hình folder source, conversation IDs, task history, stream tiến độ, nút dừng tiến trình và xử lý INTERRUPTED. Không xóa hay tạo lại database. Không thay đổi đăng nhập hoặc thanh toán.
+5. preview là giao diện cũ có luồng prompt thủ công và lưu bằng localStorage. CHỈ lấy phần trình bày: không mang cơ chế copy-prompt/dán-kết-quả hay localStorage làm dữ liệu chính sang app thật. Kết nối các component với API/store đang chạy của app local.
+6. Bấm nhân vật phải mở đúng agent đang tồn tại và folder source tương ứng. Hiện đầy đủ đường dẫn folder. Nút Giao việc phải gọi luồng thực thi CLI thật đang có. Không seed đè đội agent hiện tại bằng 4 agent mẫu.
+7. Rảnh: đi lại. Khi task thực sự chạy: về bàn và làm việc. Khi cần người dùng xử lý: dấu !. Khi hoàn tất: dấu ✓. Nguồn trạng thái là sự kiện backend; không coi việc đi lại hoặc timer là bằng chứng task đã chạy. Nhãn tạm dừng chuyển động chỉ dừng hoạt ảnh, tách biệt nút dừng task.
+8. Phần chi tiết agent/task vẫn phải có chọn folder, tạo phiên mới, lịch sử, tiến độ, kết quả và dừng task thật. Giữ nguyên enum trạng thái hiện có, ánh xạ sang nhãn tiếng Việt tại frontend. Không suy đoán đang chạy công cụ nếu backend chưa xác nhận.
+9. Kiểm tra ở desktop và mobile: không tràn màn hình; dialog dùng được bàn phím. Kiểm tra chọn agent đúng folder, gửi task chỉ đọc, nhận sự kiện thật và hiển thị kết quả. Nếu không thể chạy CLI, nêu rõ phần chưa kiểm chứng.
+10. Hoàn tất bằng cách chạy app và báo file đã sửa, phần đã kiểm tra, URL local hiện tại. Không đóng gói Electron hoặc deploy lên internet.

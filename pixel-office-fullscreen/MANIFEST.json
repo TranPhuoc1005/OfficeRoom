@@ -1,0 +1,16 @@
+{
+  "design_version": 3,
+  "mode": "auto-fill-no-zoom",
+  "sha256": {
+    "INTEGRATION.md": "0188062d8f792c01748c2a9c75029cf3e1fefaec2a4492c191ef5a4d0452c414",
+    "PROMPT_CHO_ANTIGRAVITY.txt": "feb61a66991503428286713849a9578aa067b55141d6fd3299953bfbf567a6de",
+    "QA.md": "751b57cf9d21e092205bec0614d2c9dafbd288569216e65122e088c69013769e",
+    "README.md": "8d784ae159b85260ee8af2e700aef43d1df031878609b5f7b727a2140d102de8",
+    "components/agent-sprite.js": "d31bde8bb2db5dec927586920360793331f5bd2fb5b17a74d8d999cfcd94c339",
+    "preview/game-layout.css": "0e02a18790c54f26afaa4150bf1747bba3ee51230909b987bb76a753aa499de6",
+    "preview/game-ui.js": "47a34bd51734479f15f67812a637b1ca43a64fc35978a985b8eb6437a719c4b5",
+    "preview/index.html": "6eafa2cfbc6cde514e0fccf6d327d5a9d3c7b4c178fd858dbd5efc80058bc871",
+    "preview/pixel-office.js": "b8964cd4a778e7e59ff02b32ec506a07192c88418d4afcb4b2e09ae304260f15",
+    "styles/base.css": "aac59bc00e0569f841fa8e4bcacee27ce5118c4479982b3ec39d74c8af16e35b"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "purpose": "frontend design reference; preserve local agent backend",
+  "sha256": {
+    "INTEGRATION.md": "729205ab6d69814d84e82d7c21610e0f38ed8dc8c0095fdfccf3cef1b865566e",
+    "PROMPT_CHO_ANTIGRAVITY.txt": "a501807b479630ecc86fc7cba387f4700aa83c249406bed238e507b36f55e7bc",
+    "README.md": "cf94a0beef393cfa84520c75f5fbb9a17d750c441d4de15685b0af80edd33595",
+    "components/agent-sprite.js": "c4a88669af03b42f45e767607fd72372756050333a96fd7135a6f5852905678b",
+    "preview/index.html": "3f19520be7d9be1fad287f334f767e4e83b56c42c3814740f47e01c53a5114d1",
+    "preview/pixel-office.js": "49e9d7a2f7be044c253d20b2fbc8a6e3f64bd6bdf3f70635e2b9e821452b587d",
+    "styles/layout.css": "aac59bc00e0569f841fa8e4bcacee27ce5118c4479982b3ec39d74c8af16e35b"
+  }
+}

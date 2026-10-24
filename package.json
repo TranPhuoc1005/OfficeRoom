@@ -10,7 +10,8 @@
     "runner:add-folder": "npm --prefix runner run add-folder",
     "db:migrate": "tsx scripts/migrate-to-supabase.ts",
     "db:migrate:dry-run": "tsx scripts/migrate-to-supabase.ts --dry-run",
-    "build": "npm --prefix server run build && npm --prefix client run build"
+    "build": "npm --prefix server run build && npm --prefix client run build",
+    "postinstall": "npm --prefix client install"
   },
   "devDependencies": {
     "@supabase/supabase-js": "^2.118.0",

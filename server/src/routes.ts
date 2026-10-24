@@ -31,6 +31,7 @@ apiRouter.get('/agents', (req: Request, res: Response) => {
       color,
       brief,
       avatar: parsedAvatar,
+      appearance: parsedAvatar,
       isBusy: isAgentBusy(agent.id),
       activeTaskId: getActiveTaskId(agent.id) || null
     };
@@ -130,6 +131,7 @@ apiRouter.get('/agents/:id', (req: Request, res: Response) => {
     color: agent.color || parsedAvatar.clothesColor || '#2563eb',
     brief: agent.brief || agent.system_instructions || '',
     avatar: parsedAvatar,
+    appearance: parsedAvatar,
     isBusy: isAgentBusy(agent.id),
     activeTaskId: getActiveTaskId(agent.id) || null
   });
@@ -138,7 +140,7 @@ apiRouter.get('/agents/:id', (req: Request, res: Response) => {
 // 4. Update agent settings (folder, role, instructions, avatar, color)
 apiRouter.put('/agents/:id', (req: Request, res: Response) => {
   const agentId = String(req.params.id);
-  const { name, role, system_instructions, brief, folder_path, avatar, color } = req.body;
+  const { name, role, system_instructions, brief, folder_path, avatar, appearance, color } = req.body;
 
   const agent = db.prepare('SELECT * FROM agents WHERE id = ?').get(agentId) as unknown as any;
   if (!agent) {
@@ -161,8 +163,9 @@ apiRouter.put('/agents/:id', (req: Request, res: Response) => {
   const newColor = color ?? agent.color;
   
   let newAvatarStr = agent.avatar;
-  if (avatar) {
-    newAvatarStr = JSON.stringify(avatar);
+  const incomingAvatar = avatar || appearance;
+  if (incomingAvatar) {
+    newAvatarStr = JSON.stringify(incomingAvatar);
   } else if (newColor) {
     try {
       const parsed = JSON.parse(agent.avatar || '{}');

@@ -96,6 +96,17 @@ export default function App() {
   const [isSavingLayout, setIsSavingLayout] = useState<boolean>(false);
   const [isDeleteMode, setIsDeleteMode] = useState<boolean>(false);
 
+  const isDecoratingRef = useRef(false);
+  useEffect(() => {
+    isDecoratingRef.current = isDecorating;
+  }, [isDecorating]);
+
+  const hasLoadedLayoutRef = useRef(false);
+  const agentsRef = useRef<Agent[]>(agents);
+  useEffect(() => {
+    agentsRef.current = agents;
+  }, [agents]);
+
   const [isTaskFormModalOpen, setIsTaskFormModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [taskFormAgentId, setTaskFormAgentId] = useState<string>('');
@@ -291,6 +302,8 @@ export default function App() {
   // 4. Load Office Furniture Layout
   const loadOfficeLayout = useCallback(
     async (currentAgents: Agent[]) => {
+      // NEVER overwrite furniture if user is actively in decoration mode!
+      if (isDecoratingRef.current) return;
       try {
         let loadedLayout: PlacedFurniture[] | null = null;
         let version = 1;
@@ -443,17 +456,15 @@ export default function App() {
     const item = furniture.find((f) => f.id === id);
     if (!item) return;
 
-    if (item.assignedAgentId) {
-      const ag = agents.find((a) => a.id === item.assignedAgentId);
-      const ok = window.confirm(
-        `Bàn này đang được gán cho ${ag?.name || 'Agent'}. Xóa bàn sẽ khiến Agent chưa có bàn riêng. Bạn có chắc muốn xóa không?`
-      );
-      if (!ok) return;
-    }
-
     handleUpdateFurniture(furniture.filter((f) => f.id !== id));
     setSelectedPlacedItem(null);
-    showToast('Đã xóa món đồ.');
+
+    if (item.assignedAgentId) {
+      const ag = (agentsRef.current || []).find((a) => a.id === item.assignedAgentId);
+      showToast(`🗑️ Đã xóa bàn làm việc. ${ag?.name || 'Agent'} hiện chưa có bàn riêng (có thể Hoàn tác).`);
+    } else {
+      showToast('🗑️ Đã xóa món đồ khỏi phòng.');
+    }
   };
 
   const handleAssignDeskAgent = (placedId: string, agentId: string | null) => {
@@ -484,7 +495,10 @@ export default function App() {
       loadAgents().then((ag) => {
         if (ag && ag.length > 0) {
           loadAllTasks(ag);
-          loadOfficeLayout(ag);
+          if (!hasLoadedLayoutRef.current) {
+            hasLoadedLayoutRef.current = true;
+            loadOfficeLayout(ag);
+          }
         }
       });
       return;
@@ -524,9 +538,12 @@ export default function App() {
     if (!isSupabaseActive || !supabase || !officeId) return;
 
     loadAgents().then((loaded) => {
-      loadAllTasks(loaded || agents);
+      loadAllTasks(loaded || agentsRef.current);
       loadRunnersAndProjects();
-      loadOfficeLayout(loaded || agents);
+      if (!hasLoadedLayoutRef.current) {
+        hasLoadedLayoutRef.current = true;
+        loadOfficeLayout(loaded || agentsRef.current);
+      }
     });
 
     const channel = supabase
@@ -686,7 +703,7 @@ export default function App() {
       if (supabase) supabase.removeChannel(channel);
       clearInterval(runnerInterval);
     };
-  }, [isSupabaseActive, officeId, loadAgents, loadAllTasks, loadRunnersAndProjects, agents]);
+  }, [isSupabaseActive, officeId, loadAgents, loadAllTasks, loadRunnersAndProjects]);
 
 
 

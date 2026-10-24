@@ -118,8 +118,8 @@ export const PixelOfficeCanvas: React.FC<PixelOfficeCanvasProps> = ({
       ignoreItemId?: string,
       category?: string
     ): boolean => {
-      const maxGx = Math.floor(worldDim.W / STEP) - 1;
-      const maxGy = Math.floor(worldDim.H / STEP) - 1;
+      const maxGx = Math.max(68, Math.floor(worldDim.W / STEP) - 1);
+      const maxGy = Math.max(42, Math.floor(worldDim.H / STEP) - 1);
 
       // Wall decor category: placed on the upper wall (gy: 1 to 5)
       if (category === 'decor') {
@@ -385,8 +385,8 @@ export const PixelOfficeCanvas: React.FC<PixelOfficeCanvasProps> = ({
     if (r.width === 0 || r.height === 0) return;
 
     const displayScale = r.width < 700 ? 0.85 : Math.max(0.8, Math.min(1.5, (r.height - 100) / 650));
-    const W = Math.ceil(r.width / displayScale);
-    const H = Math.ceil(r.height / displayScale);
+    const W = Math.max(1120, Math.ceil(r.width / displayScale));
+    const H = Math.max(700, Math.ceil(r.height / displayScale));
 
     setWorldDim({ W, H, scale: displayScale });
   }, []);

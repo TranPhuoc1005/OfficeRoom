@@ -101,11 +101,6 @@ button.danger:hover {
   cursor: default;
 }
 
-.world-viewport.mode-decorating {
-  bottom: 240px !important;
-  transition: bottom 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
 .office.pixel-room {
   position: absolute !important;
   inset: 0 !important;

@@ -94,6 +94,7 @@ export default function App() {
   const [selectedPlacedItem, setSelectedPlacedItem] = useState<PlacedFurniture | null>(null);
   const [furnitureLayoutVersion, setFurnitureLayoutVersion] = useState<number>(1);
   const [isSavingLayout, setIsSavingLayout] = useState<boolean>(false);
+  const [isDeleteMode, setIsDeleteMode] = useState<boolean>(false);
 
   const [isTaskFormModalOpen, setIsTaskFormModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -352,6 +353,7 @@ export default function App() {
       setUndoStack([]);
       setSelectedCatalogItem(null);
       setSelectedPlacedItem(null);
+      setIsDeleteMode(false);
       setIsDecorating(true);
       setCurrentView('office');
       showToast('🔨 Đã bật chế độ trang trí. Chọn đồ nội thất từ thanh bên dưới để đặt.');
@@ -378,6 +380,7 @@ export default function App() {
     setIsDecorating(false);
     setSelectedCatalogItem(null);
     setSelectedPlacedItem(null);
+    setIsDeleteMode(false);
     setUndoStack([]);
     showToast('Đã hủy các thay đổi trang trí.');
   };
@@ -1323,8 +1326,11 @@ export default function App() {
           furniture={furniture}
           onUpdateFurniture={handleUpdateFurniture}
           selectedCatalogItem={selectedCatalogItem}
+          onSelectCatalogItem={setSelectedCatalogItem}
           selectedPlacedItem={selectedPlacedItem}
           onSelectPlacedItem={setSelectedPlacedItem}
+          isDeleteMode={isDeleteMode}
+          onDeletePlacedItem={handleDeletePlacedItem}
         />
       </section>
 
@@ -2255,8 +2261,12 @@ export default function App() {
         isOpen={isDecorating}
         onClose={handleCancelDecorate}
         selectedCatalogItem={selectedCatalogItem}
-        onSelectCatalogItem={setSelectedCatalogItem}
+        onSelectCatalogItem={(item) => {
+          setSelectedCatalogItem(item);
+          if (item) setIsDeleteMode(false);
+        }}
         selectedPlacedItem={selectedPlacedItem}
+        onSelectPlacedItem={setSelectedPlacedItem}
         onDeletePlacedItem={handleDeletePlacedItem}
         onAssignDeskAgent={handleAssignDeskAgent}
         agents={agents}
@@ -2265,6 +2275,11 @@ export default function App() {
         onSave={handleSaveDecorate}
         onCancel={handleCancelDecorate}
         isSaving={isSavingLayout}
+        isDeleteMode={isDeleteMode}
+        onToggleDeleteMode={() => {
+          setIsDeleteMode(!isDeleteMode);
+          if (!isDeleteMode) setSelectedCatalogItem(null);
+        }}
       />
 
       {/* TASK FORM MODAL (Giao việc / Chỉnh sửa công việc) */}

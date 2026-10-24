@@ -12,6 +12,7 @@ interface FurnitureCatalogDockProps {
   selectedCatalogItem: FurnitureDefinition | null;
   onSelectCatalogItem: (item: FurnitureDefinition | null) => void;
   selectedPlacedItem: PlacedFurniture | null;
+  onSelectPlacedItem?: (item: PlacedFurniture | null) => void;
   onDeletePlacedItem: (id: string) => void;
   onAssignDeskAgent: (placedId: string, agentId: string | null) => void;
   agents: Array<{ id: string; name: string }>;
@@ -20,6 +21,8 @@ interface FurnitureCatalogDockProps {
   onSave: () => void;
   onCancel: () => void;
   isSaving?: boolean;
+  isDeleteMode?: boolean;
+  onToggleDeleteMode?: () => void;
 }
 
 const CATEGORY_TABS: Array<{ id: FurnitureCategory; label: string; icon: string }> = [
@@ -40,6 +43,7 @@ export const FurnitureCatalogDock: React.FC<FurnitureCatalogDockProps> = ({
   selectedCatalogItem,
   onSelectCatalogItem,
   selectedPlacedItem,
+  onSelectPlacedItem,
   onDeletePlacedItem,
   onAssignDeskAgent,
   agents,
@@ -47,7 +51,9 @@ export const FurnitureCatalogDock: React.FC<FurnitureCatalogDockProps> = ({
   onUndo,
   onSave,
   onCancel,
-  isSaving = false
+  isSaving = false,
+  isDeleteMode = false,
+  onToggleDeleteMode
 }) => {
   const [activeCategory, setActiveCategory] = useState<FurnitureCategory>('all');
 
@@ -62,21 +68,67 @@ export const FurnitureCatalogDock: React.FC<FurnitureCatalogDockProps> = ({
       {/* Top Decorate Action Bar */}
       <div className="decor-action-bar">
         <div className="decor-left-status">
-          <span className="decor-icon-badge">🔨</span>
-          <div>
-            <strong>CHẾ ĐỘ TRANG TRÍ VĂN PHÒNG</strong>
+          <div className="decor-tools-group">
+            <button
+              type="button"
+              className={`btn-tool-mode ${!isDeleteMode && !selectedCatalogItem ? 'active' : ''}`}
+              onClick={() => {
+                if (isDeleteMode) onToggleDeleteMode?.();
+                onSelectCatalogItem(null);
+              }}
+              title="Bấm để chọn món đồ trên sàn, kéo di chuyển hoặc xóa"
+            >
+              👆 Chọn & Di chuyển
+            </button>
+            <button
+              type="button"
+              className={`btn-tool-mode ${selectedCatalogItem ? 'active' : ''}`}
+              onClick={() => {
+                if (isDeleteMode) onToggleDeleteMode?.();
+                if (!selectedCatalogItem && filteredItems.length > 0) {
+                  onSelectCatalogItem(filteredItems[0]);
+                }
+              }}
+              title="Chọn đồ nội thất từ kệ bên dưới để đặt vào phòng"
+            >
+              🔨 Đặt đồ mới
+            </button>
+            <button
+              type="button"
+              className={`btn-tool-mode btn-mode-delete ${isDeleteMode ? 'active' : ''}`}
+              onClick={() => {
+                onToggleDeleteMode?.();
+                onSelectCatalogItem(null);
+              }}
+              title="Bật chế độ xóa nhanh: Bấm vào bất kỳ món đồ nào trên sàn để xóa ngay"
+            >
+              🗑️ Chế độ Xóa đồ
+            </button>
+          </div>
+
+          <div className="decor-hint-container">
             <span className="decor-hint">
-              {selectedPlacedItem
-                ? `Đang chọn: ${selectedPlacedItem.type} (Kéo để di chuyển, hoặc gán chủ bàn)`
-                : selectedCatalogItem
-                ? `Đang chọn đặt: ${selectedCatalogItem.name} — Bấm lên sàn văn phòng để đặt`
-                : 'Chọn đồ nội thất bên dưới rồi bấm vào sàn phòng để đặt (Xanh: hợp lệ, Đỏ: bị chặn)'}
+              {isDeleteMode ? (
+                <strong style={{ color: '#f87171' }}>
+                  ⚠️ ĐANG BẬT CHẾ ĐỘ XÓA: Bấm vào bất kỳ đồ nội thất nào trên sàn để xóa!
+                </strong>
+              ) : selectedPlacedItem ? (
+                <span>
+                  Đang chọn: <strong>{FURNITURE_CATALOG.find(f => f.type === selectedPlacedItem.type)?.name || selectedPlacedItem.type}</strong> — Kéo để di chuyển, hoặc bấm "Xóa đồ".
+                </span>
+              ) : selectedCatalogItem ? (
+                <span>
+                  Đang chọn đặt: <strong style={{ color: '#4ade80' }}>{selectedCatalogItem.name}</strong> — Bấm ô sàn xanh để đặt.
+                </span>
+              ) : (
+                'Bấm vào đồ trên sàn để chọn/di chuyển/xóa, hoặc chọn đồ từ kệ bên dưới để đặt.'
+              )}
             </span>
           </div>
         </div>
 
         {/* Selected Placed Item Controls (e.g. Desk Owner, Delete) */}
-        {selectedPlacedItem && (
+        {selectedPlacedItem && !isDeleteMode && (
           <div className="placed-item-controls">
             {selectedPlacedItem.type.startsWith('desk') && (
               <div className="desk-assignment-picker">
@@ -103,9 +155,17 @@ export const FurnitureCatalogDock: React.FC<FurnitureCatalogDockProps> = ({
               type="button"
               className="btn-danger-sm"
               onClick={() => onDeletePlacedItem(selectedPlacedItem.id)}
-              title="Xóa món đồ này khỏi văn phòng"
+              title="Xóa món đồ này khỏi văn phòng (hoặc bấm phím Delete/Backspace)"
             >
-              🗑️ Xóa đồ
+              🗑️ Xóa món này
+            </button>
+            <button
+              type="button"
+              className="btn-close-sm"
+              onClick={() => onSelectPlacedItem?.(null)}
+              title="Bỏ chọn"
+            >
+              ✕
             </button>
           </div>
         )}

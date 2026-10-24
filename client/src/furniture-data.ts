@@ -557,9 +557,41 @@ export const FURNITURE_CATALOG: FurnitureDefinition[] = [
   }
 ];
 
-// Helper to look up definition by type
+const TYPE_ALIASES: Record<string, string> = {
+  'desk-wooden': 'desk-wood',
+  'desk_wooden': 'desk-wood',
+  'desk_wood': 'desk-wood',
+  'desk_modern': 'desk-modern',
+  'chair_swivel': 'chair-swivel',
+  'chair_armchair': 'chair-armchair',
+  'dispenser_water': 'water-dispenser',
+  'dispenser-water': 'water-dispenser',
+  'water_dispenser': 'water-dispenser',
+  'coffee_machine': 'coffee-machine',
+  'table_coffee': 'table-coffee',
+  'shelf_books': 'shelf-books',
+  'cabinet_filing': 'cabinet-filing',
+  'board_whiteboard': 'board-whiteboard',
+  'lamp_floor': 'lamp-floor',
+  'plant_monstera': 'plant-monstera',
+  'plant_succulent': 'plant-succulent',
+  'plant_ficus': 'plant-ficus',
+  'rug_cozy': 'rug-cozy',
+  'rug_warm': 'rug-warm',
+  'rug-bohemia': 'rug-warm',
+  'rug_bohemia': 'rug-warm',
+  'sofa_sage': 'sofa-sage'
+};
+
+// Helper to look up definition by type with full alias normalization
 export function getFurnitureDef(type: string): FurnitureDefinition | undefined {
-  return FURNITURE_CATALOG.find((f) => f.type === type);
+  if (!type) return undefined;
+  const canonical = TYPE_ALIASES[type] || TYPE_ALIASES[type.toLowerCase().replace(/_/g, '-')] || type;
+  const normalized = canonical.toLowerCase().replace(/_/g, '-');
+  return FURNITURE_CATALOG.find((f) => {
+    const fNorm = f.type.toLowerCase().replace(/_/g, '-');
+    return fNorm === normalized || f.type === canonical || f.type === type;
+  });
 }
 
 // Generate default placed furniture matching the 7 agents & 2-column layout

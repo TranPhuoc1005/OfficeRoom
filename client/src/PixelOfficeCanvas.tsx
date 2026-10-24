@@ -14,8 +14,11 @@ export interface PixelOfficeCanvasProps {
   furniture: PlacedFurniture[];
   onUpdateFurniture?: (newFurniture: PlacedFurniture[]) => void;
   selectedCatalogItem?: FurnitureDefinition | null;
+  onSelectCatalogItem?: (item: FurnitureDefinition | null) => void;
   selectedPlacedItem?: PlacedFurniture | null;
   onSelectPlacedItem?: (item: PlacedFurniture | null) => void;
+  isDeleteMode?: boolean;
+  onDeletePlacedItem?: (id: string) => void;
 }
 
 interface Obstacle {
@@ -56,8 +59,11 @@ export const PixelOfficeCanvas: React.FC<PixelOfficeCanvasProps> = ({
   furniture,
   onUpdateFurniture,
   selectedCatalogItem = null,
+  onSelectCatalogItem,
   selectedPlacedItem = null,
-  onSelectPlacedItem
+  onSelectPlacedItem,
+  isDeleteMode = false,
+  onDeletePlacedItem
 }) => {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -78,6 +84,7 @@ export const PixelOfficeCanvas: React.FC<PixelOfficeCanvasProps> = ({
 
   // Drag and hover state for decoration
   const [hoverGrid, setHoverGrid] = useState<{ gx: number; gy: number; valid: boolean } | null>(null);
+  const [hoveredDeleteItem, setHoveredDeleteItem] = useState<PlacedFurniture | null>(null);
   const [draggingItem, setDraggingItem] = useState<{
     item: PlacedFurniture;
     startGx: number;
@@ -86,13 +93,40 @@ export const PixelOfficeCanvas: React.FC<PixelOfficeCanvasProps> = ({
     curGy: number;
   } | null>(null);
 
+  // Keyboard shortcut: Delete or Backspace to remove selected item
+  useEffect(() => {
+    if (!isDecorating || !selectedPlacedItem) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeTag = (document.activeElement?.tagName || '').toLowerCase();
+      if (activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select') return;
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        onDeletePlacedItem?.(selectedPlacedItem.id);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isDecorating, selectedPlacedItem, onDeletePlacedItem]);
+
   // 1. Check if placement is valid (inside room boundaries and not overlapping other obstacles)
   const isPlacementValid = useCallback(
-    (gx: number, gy: number, w: number, h: number, ignoreItemId?: string): boolean => {
+    (
+      gx: number,
+      gy: number,
+      w: number,
+      h: number,
+      ignoreItemId?: string,
+      category?: string
+    ): boolean => {
       const maxGx = Math.floor(worldDim.W / STEP) - 1;
-      const maxGy = Math.floor(worldDim.H / STEP) - 2;
+      const maxGy = Math.floor(worldDim.H / STEP) - 1;
 
-      // Boundary check: Top wall ends at gy = 5, bottom margin at maxGy
+      // Wall decor category: placed on the upper wall (gy: 1 to 5)
+      if (category === 'decor') {
+        return gx >= 1 && gx + w <= maxGx && gy >= 1 && gy <= 5;
+      }
+
+      // Floor furniture: Wall ends at gy = 5 (y = 80px), bottom margin at maxGy
       if (gx < 1 || gx + w > maxGx || gy < 5 || gy + h > maxGy) {
         return false;
       }
@@ -101,7 +135,10 @@ export const PixelOfficeCanvas: React.FC<PixelOfficeCanvasProps> = ({
       for (const item of furniture) {
         if (ignoreItemId && item.id === ignoreItemId) continue;
         const def = getFurnitureDef(item.type);
-        if (!def || !def.isObstacle) continue;
+        if (!def) continue;
+
+        // Rugs can be placed anywhere and do not block other furniture
+        if (!def.isObstacle || category === 'rug') continue;
 
         const overlap =
           gx < item.gx + def.w &&
@@ -280,7 +317,7 @@ export const PixelOfficeCanvas: React.FC<PixelOfficeCanvasProps> = ({
     g.restore();
 
     // B. Draw Hover / Drag Placement Preview
-    if (hoverGrid && (selectedCatalogItem || draggingItem)) {
+    if (!isDeleteMode && hoverGrid && (selectedCatalogItem || draggingItem)) {
       const def = selectedCatalogItem || (draggingItem ? getFurnitureDef(draggingItem.item.type) : null);
       if (def) {
         const px = hoverGrid.gx * STEP;
@@ -308,7 +345,38 @@ export const PixelOfficeCanvas: React.FC<PixelOfficeCanvasProps> = ({
         g.restore();
       }
     }
-  }, [isDecorating, hoverGrid, selectedCatalogItem, draggingItem, worldDim]);
+
+    // C. Draw Delete Mode Hover Highlight
+    if (isDeleteMode && hoveredDeleteItem) {
+      const def = getFurnitureDef(hoveredDeleteItem.type);
+      if (def) {
+        const px = hoveredDeleteItem.gx * STEP;
+        const py = hoveredDeleteItem.gy * STEP;
+        const pw = def.w * STEP;
+        const ph = def.h * STEP;
+
+        g.save();
+        g.fillStyle = 'rgba(239, 68, 68, 0.45)';
+        g.strokeStyle = '#ef4444';
+        g.lineWidth = 3;
+        g.setLineDash([5, 5]);
+        g.fillRect(px, py, pw, ph);
+        g.strokeRect(px, py, pw, ph);
+
+        // Delete badge
+        g.setLineDash([]);
+        g.fillStyle = '#dc2626';
+        const tagW = 100;
+        const tagH = 20;
+        const tagY = Math.max(10, py - 22);
+        g.fillRect(px, tagY, tagW, tagH);
+        g.fillStyle = '#ffffff';
+        g.font = 'bold 11px system-ui';
+        g.fillText('🗑️ Bấm để xóa', px + 8, tagY + 14);
+        g.restore();
+      }
+    }
+  }, [isDecorating, isDeleteMode, hoveredDeleteItem, hoverGrid, selectedCatalogItem, draggingItem, worldDim]);
 
   // 4. Auto-fill Resize
   const resizeRoom = useCallback(() => {
@@ -583,43 +651,90 @@ export const PixelOfficeCanvas: React.FC<PixelOfficeCanvasProps> = ({
 
   // 8. Mouse Events for Decoration Mode (Hover preview, click to place, drag existing items)
   const handleStageMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isDecorating || !overlayCanvasRef.current) return;
-    const r = overlayCanvasRef.current.getBoundingClientRect();
+    if (!isDecorating || !stageRef.current) return;
+    const r = stageRef.current.getBoundingClientRect();
     const mx = (e.clientX - r.left) / worldDim.scale;
     const my = (e.clientY - r.top) / worldDim.scale;
 
     const gx = Math.round(mx / STEP);
     const gy = Math.round(my / STEP);
 
+    if (isDeleteMode) {
+      // Find item under cursor for delete highlight
+      const targetItem = [...furniture].reverse().find((item) => {
+        const def = getFurnitureDef(item.type);
+        if (!def) return false;
+        const px = item.gx * STEP;
+        const py = item.gy * STEP;
+        const pw = def.w * STEP;
+        const ph = def.h * STEP;
+        return mx >= px && mx <= px + pw && my >= py && my <= py + ph;
+      });
+      setHoveredDeleteItem(targetItem || null);
+      setHoverGrid(null);
+      return;
+    }
+
+    setHoveredDeleteItem(null);
+
     if (draggingItem) {
       const def = getFurnitureDef(draggingItem.item.type);
       const w = def?.w || 2;
       const h = def?.h || 2;
-      const valid = isPlacementValid(gx, gy, w, h, draggingItem.item.id);
+      const valid = isPlacementValid(gx, gy, w, h, draggingItem.item.id, def?.category);
       setHoverGrid({ gx, gy, valid });
       setDraggingItem((prev) => (prev ? { ...prev, curGx: gx, curGy: gy } : null));
     } else if (selectedCatalogItem) {
-      const valid = isPlacementValid(gx, gy, selectedCatalogItem.w, selectedCatalogItem.h);
+      const valid = isPlacementValid(gx, gy, selectedCatalogItem.w, selectedCatalogItem.h, undefined, selectedCatalogItem.category);
       setHoverGrid({ gx, gy, valid });
     }
   };
 
   const handleStageMouseLeave = () => {
     setHoverGrid(null);
+    setHoveredDeleteItem(null);
   };
 
   const handleStageClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isDecorating || !overlayCanvasRef.current) return;
-    const r = overlayCanvasRef.current.getBoundingClientRect();
+    if (!isDecorating || !stageRef.current) return;
+    const r = stageRef.current.getBoundingClientRect();
     const mx = (e.clientX - r.left) / worldDim.scale;
     const my = (e.clientY - r.top) / worldDim.scale;
 
     const gx = Math.round(mx / STEP);
     const gy = Math.round(my / STEP);
 
+    // Case 0: Delete Mode Active -> Delete clicked item immediately
+    if (isDeleteMode) {
+      const targetItem = [...furniture].reverse().find((item) => {
+        const def = getFurnitureDef(item.type);
+        if (!def) return false;
+        const px = item.gx * STEP;
+        const py = item.gy * STEP;
+        const pw = def.w * STEP;
+        const ph = def.h * STEP;
+        return mx >= px && mx <= px + pw && my >= py && my <= py + ph;
+      });
+      if (targetItem) {
+        onDeletePlacedItem?.(targetItem.id);
+      }
+      return;
+    }
+
     // Case A: Placing a new catalog item
     if (selectedCatalogItem) {
-      const valid = isPlacementValid(gx, gy, selectedCatalogItem.w, selectedCatalogItem.h);
+      // Check if user clicked an existing placed item on floor instead
+      const clickedExisting = [...furniture].reverse().find((item) => {
+        const def = getFurnitureDef(item.type);
+        if (!def) return false;
+        const px = item.gx * STEP;
+        const py = item.gy * STEP;
+        const pw = def.w * STEP;
+        const ph = def.h * STEP;
+        return mx >= px && mx <= px + pw && my >= py && my <= py + ph;
+      });
+
+      const valid = isPlacementValid(gx, gy, selectedCatalogItem.w, selectedCatalogItem.h, undefined, selectedCatalogItem.category);
       if (valid) {
         const newItem: PlacedFurniture = {
           id: `item-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -631,6 +746,14 @@ export const PixelOfficeCanvas: React.FC<PixelOfficeCanvasProps> = ({
         };
         onUpdateFurniture?.([...furniture, newItem]);
         onSelectPlacedItem?.(newItem);
+        return;
+      }
+
+      // If clicked existing item where placement is invalid, select the existing item!
+      if (clickedExisting) {
+        onSelectPlacedItem?.(clickedExisting);
+        onSelectCatalogItem?.(null);
+        return;
       }
       return;
     }
@@ -646,16 +769,12 @@ export const PixelOfficeCanvas: React.FC<PixelOfficeCanvasProps> = ({
       return mx >= px && mx <= px + pw && my >= py && my <= py + ph;
     });
 
-    if (clickedItem) {
-      onSelectPlacedItem?.(clickedItem);
-    } else {
-      onSelectPlacedItem?.(null);
-    }
+    onSelectPlacedItem?.(clickedItem || null);
   };
 
   const handleStageMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isDecorating || selectedCatalogItem || !overlayCanvasRef.current) return;
-    const r = overlayCanvasRef.current.getBoundingClientRect();
+    if (!isDecorating || isDeleteMode || selectedCatalogItem || !stageRef.current) return;
+    const r = stageRef.current.getBoundingClientRect();
     const mx = (e.clientX - r.left) / worldDim.scale;
     const my = (e.clientY - r.top) / worldDim.scale;
 
@@ -687,7 +806,7 @@ export const PixelOfficeCanvas: React.FC<PixelOfficeCanvasProps> = ({
       const def = getFurnitureDef(draggingItem.item.type);
       const w = def?.w || 2;
       const h = def?.h || 2;
-      const valid = isPlacementValid(draggingItem.curGx, draggingItem.curGy, w, h, draggingItem.item.id);
+      const valid = isPlacementValid(draggingItem.curGx, draggingItem.curGy, w, h, draggingItem.item.id, def?.category);
 
       if (valid && (draggingItem.curGx !== draggingItem.startGx || draggingItem.curGy !== draggingItem.startGy)) {
         // Update moved item
@@ -752,8 +871,50 @@ export const PixelOfficeCanvas: React.FC<PixelOfficeCanvasProps> = ({
             aria-hidden="true"
           />
 
+          {/* Floating Action HUD on Selected Placed Item */}
+          {isDecorating && selectedPlacedItem && !isDeleteMode && (
+            <div
+              className="furniture-floating-hud"
+              style={{
+                position: 'absolute',
+                left: `${selectedPlacedItem.gx * STEP + ((getFurnitureDef(selectedPlacedItem.type)?.w || 2) * STEP) / 2}px`,
+                top: `${Math.max(8, selectedPlacedItem.gy * STEP - 36)}px`,
+                transform: 'translate(-50%, 0)',
+                zIndex: 120
+              }}
+            >
+              <div className="floating-hud-content">
+                <span className="hud-label">
+                  {getFurnitureDef(selectedPlacedItem.type)?.name || selectedPlacedItem.type}
+                </span>
+                <button
+                  type="button"
+                  className="hud-delete-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeletePlacedItem?.(selectedPlacedItem.id);
+                  }}
+                  title="Xóa món đồ này khỏi văn phòng (hoặc phím Delete)"
+                >
+                  🗑️ Xóa đồ
+                </button>
+                <button
+                  type="button"
+                  className="hud-close-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectPlacedItem?.(null);
+                  }}
+                  title="Bỏ chọn"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Interactive Chibi Actor Buttons Layer */}
-          <div className="pixel-actors">
+          <div className="pixel-actors" style={{ pointerEvents: isDecorating ? 'none' : 'auto' }}>
             {actorsList.map((actor) => {
               const isSelected = selectedAgentId === actor.agent.id;
               const isMoving = actor.path.length > 0;

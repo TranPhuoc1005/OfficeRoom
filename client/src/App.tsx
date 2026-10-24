@@ -1077,6 +1077,48 @@ export default function App() {
         />
       </section>
 
+      {/* LOGIN PROMPT BANNER (Hiển thị khi mở website trên Vercel / máy khác chưa đăng nhập) */}
+      {isSupabaseActive && !authSession && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            background: 'rgba(255, 251, 240, 0.96)',
+            padding: '24px 32px',
+            borderRadius: '12px',
+            border: '3px solid #2d3748',
+            boxShadow: '6px 6px 0px rgba(0, 0, 0, 0.25)',
+            textAlign: 'center',
+            zIndex: 90,
+            maxWidth: '380px',
+            width: '90%'
+          }}
+        >
+          <div style={{ fontSize: '36px', marginBottom: '8px' }}>🏢</div>
+          <h2 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 'bold', color: '#1a202c' }}>
+            Pixel Office Cloud
+          </h2>
+          <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: '#64748b', lineHeight: '1.5' }}>
+            Vui lòng đăng nhập để mở văn phòng, tải 7 Agent và kết nối với máy Windows Runner của bạn.
+          </p>
+          <button
+            className="primary"
+            style={{
+              padding: '10px 24px',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              boxShadow: '3px 3px 0px #1e293b'
+            }}
+            onClick={() => setIsAuthModalOpen(true)}
+          >
+            🔑 Đăng nhập văn phòng
+          </button>
+        </div>
+      )}
+
       {/* 2. TOP BRAND TITLE */}
       <div className="world-title">
         <div className="studio-mark">ao<span>✦</span></div>
@@ -1196,14 +1238,58 @@ export default function App() {
         ) : (
           <span>{wsConnected ? 'Antigravity CLI' : 'Đang kết nối...'}</span>
         )}
-        {authSession?.user?.email && (
+        {authSession?.user?.email ? (
           <>
             <span className="badge-divider">/</span>
             <span style={{ fontSize: '11px', opacity: 0.85 }} title={authSession.user.email}>
               👤 {authSession.user.email.split('@')[0]}
             </span>
+            <button
+              className="small"
+              style={{
+                marginLeft: '4px',
+                fontSize: '10px',
+                padding: '1px 6px',
+                background: 'none',
+                border: '1px solid #cbd5e1',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+              onClick={async () => {
+                await supabase?.auth.signOut();
+                setAuthSession(null);
+                setOfficeId(null);
+                setAgents([]);
+                setTasks([]);
+                setIsAuthModalOpen(true);
+              }}
+              title="Đăng xuất"
+            >
+              Thoát
+            </button>
           </>
-        )}
+        ) : isSupabaseActive ? (
+          <>
+            <span className="badge-divider">/</span>
+            <button
+              className="primary small"
+              style={{
+                fontSize: '11px',
+                padding: '2px 8px',
+                fontWeight: 'bold',
+                backgroundColor: '#2563eb',
+                color: '#fff',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                border: 'none'
+              }}
+              onClick={() => setIsAuthModalOpen(true)}
+              title="Bấm để đăng nhập vào văn phòng"
+            >
+              🔑 Đăng nhập
+            </button>
+          </>
+        ) : null}
       </div>
 
       {/* 4. BOTTOM HELP TEXT */}

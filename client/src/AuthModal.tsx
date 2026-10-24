@@ -9,7 +9,7 @@ interface AuthModalProps {
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onSuccess, onUseLocalMode }) => {
   const [isSignUp, setIsSignUp] = useState(false);
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState('tranphuoc1005@gmail.com');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);

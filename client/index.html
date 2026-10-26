@@ -17,7 +17,7 @@
       window.data = window.data || { version: 1, agents: [], tasks: [] };
       window.agent = window.agent || (id => (window.data?.agents || []).find(a => a.id === id));
       window.esc = window.esc || (v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])));
-      window.toast = window.toast || (s => { console.log(s); const t = document.querySelector('#toast'); if (t) { t.textContent = s; t.classList.remove('hidden'); setTimeout(() => t.classList.add('hidden'), 4000); } });
+      window.toast = (s => { console.log(s); const t = document.querySelector('#toast'); if (t) { t.textContent = s; t.classList.remove('hidden'); setTimeout(() => t.classList.add('hidden'), 4000); } });
       window.modal = (title, html) => {
         const m = document.querySelector('#modal');
         const t = document.querySelector('#modalTitle');

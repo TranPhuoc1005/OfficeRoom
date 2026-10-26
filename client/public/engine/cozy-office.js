@@ -2,7 +2,7 @@
 window.$ = window.$ || (s => document.querySelector(s));
 window.$$ = window.$$ || (s => [...document.querySelectorAll(s)]);
 window.esc = window.esc || (v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])));
-window.toast = window.toast || (s => { console.log(s); const t = document.querySelector('#toast'); if (t) { t.textContent = s; t.classList.remove('hidden'); setTimeout(() => t.classList.add('hidden'), 4000); } });
+window.toast = (typeof window.toast === 'function') ? window.toast : (s => { console.log(s); const t = document.querySelector('#toast'); if (t) { t.textContent = s; t.classList.remove('hidden'); setTimeout(() => t.classList.add('hidden'), 4000); } });
 window.data = window.data || { version: 1, agents: [], tasks: [] };
 
 window.initCozyOffice = function() {

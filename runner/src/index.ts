@@ -44,7 +44,15 @@ if (!RUNNER_ID || !RUNNER_SECRET_TOKEN) {
 // Compute SHA-256 hash of secret token
 const secretTokenHash = crypto.createHash('sha256').update(RUNNER_SECRET_TOKEN).digest('hex');
 
-// 2. Initialize Supabase Client with robust HTTPS fetch (eliminates Node 25 Windows undici ECONNRESET)
+// Persistent HTTPS Agent with keepAlive connection pooling
+const persistentAgent = new https.Agent({
+  keepAlive: true,
+  keepAliveMsecs: 30000,
+  maxSockets: 5,
+  timeout: 15000
+});
+
+// 2. Initialize Supabase Client with robust HTTPS fetch and connection pooling
 const httpsFetch: typeof fetch = (input: any, init: any = {}): Promise<Response> => {
   const urlStr = typeof input === 'string' ? input : input.url;
   const u = new URL(urlStr);
@@ -59,39 +67,58 @@ const httpsFetch: typeof fetch = (input: any, init: any = {}): Promise<Response>
     }
   }
 
-  return new Promise((resolve, reject) => {
-    const req = https.request(
-      {
-        protocol: u.protocol,
-        hostname: u.hostname,
-        port: u.port || 443,
-        path: u.pathname + u.search,
-        method: init.method || 'GET',
-        headers: reqHeaders
-      },
-      (res) => {
-        const chunks: Buffer[] = [];
-        res.on('data', (chunk) => chunks.push(chunk));
-        res.on('end', () => {
-          const body = Buffer.concat(chunks).toString('utf8');
-          const mockResponse = {
-            ok: res.statusCode ? res.statusCode >= 200 && res.statusCode < 300 : false,
-            status: res.statusCode || 200,
-            statusText: res.statusMessage || 'OK',
-            headers: new Headers(res.headers as any),
-            text: async () => body,
-            json: async () => JSON.parse(body || '{}')
-          } as unknown as Response;
-          resolve(mockResponse);
-        });
+  const makeRequest = (attempt = 0): Promise<Response> => {
+    return new Promise((resolve, reject) => {
+      const req = https.request(
+        {
+          protocol: u.protocol,
+          hostname: u.hostname,
+          port: u.port || 443,
+          path: u.pathname + u.search,
+          method: init.method || 'GET',
+          headers: reqHeaders,
+          agent: persistentAgent
+        },
+        (res) => {
+          const chunks: Buffer[] = [];
+          res.on('data', (chunk) => chunks.push(chunk));
+          res.on('end', () => {
+            const body = Buffer.concat(chunks).toString('utf8');
+            const mockResponse = {
+              ok: res.statusCode ? res.statusCode >= 200 && res.statusCode < 300 : false,
+              status: res.statusCode || 200,
+              statusText: res.statusMessage || 'OK',
+              headers: new Headers(res.headers as any),
+              text: async () => body,
+              json: async () => JSON.parse(body || '{}')
+            } as unknown as Response;
+            resolve(mockResponse);
+          });
+        }
+      );
+
+      req.on('error', async (err: any) => {
+        if (attempt < 2 && (err.code === 'ECONNRESET' || err.code === 'ETIMEDOUT' || err.message?.includes('socket hang up'))) {
+          await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
+          try {
+            const retryRes = await makeRequest(attempt + 1);
+            resolve(retryRes);
+          } catch (retryErr) {
+            reject(retryErr);
+          }
+        } else {
+          reject(err);
+        }
+      });
+
+      if (init.body) {
+        req.write(typeof init.body === 'string' ? init.body : JSON.stringify(init.body));
       }
-    );
-    req.on('error', reject);
-    if (init.body) {
-      req.write(typeof init.body === 'string' ? init.body : JSON.stringify(init.body));
-    }
-    req.end();
-  });
+      req.end();
+    });
+  };
+
+  return makeRequest();
 };
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -334,11 +361,11 @@ async function startRunner() {
     await sendHeartbeat(currentExec ? 'busy' : 'online');
   }, 10000);
 
-  // Polling loop (every 3 seconds when idle)
+  // Fallback polling loop (every 12 seconds when idle, Realtime handles instant trigger)
   const pollTimer = setInterval(async () => {
     if (!isRunning || getActiveExecution()) return;
     await claimAndRunTask();
-  }, 3000);
+  }, 12000);
 
   // Initial task check
   await claimAndRunTask();

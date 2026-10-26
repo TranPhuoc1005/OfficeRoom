@@ -29,9 +29,15 @@ export function getActiveExecution(): ActiveExecution | null {
 }
 
 export function findAgyBinary(): string {
+  const userProfile = process.env.USERPROFILE || 'C:\\Users\\Default';
+  const geminiAgyPath = path.join(userProfile, '.gemini', 'bin', 'agy.exe');
+  if (fs.existsSync(geminiAgyPath)) {
+    return geminiAgyPath;
+  }
+
   const localAppData =
     process.env.LOCALAPPDATA ||
-    path.join(process.env.USERPROFILE || 'C:\\Users\\Default', 'AppData\\Local');
+    path.join(userProfile, 'AppData\\Local');
   const standardAgyPath = path.join(localAppData, 'agy', 'bin', 'agy.exe');
 
   if (fs.existsSync(standardAgyPath)) {

@@ -82,7 +82,9 @@ export default function App() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isRunnerModalOpen, setIsRunnerModalOpen] = useState(false);
   const [projectSelectAgentId, setProjectSelectAgentId] = useState<string | null>(null);
+  const isCloudHost = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
   const [isLocalOnlyMode, setIsLocalOnlyMode] = useState<boolean>(() => {
+    if (isCloudHost) return false;
     return localStorage.getItem('pixel_office_local_mode') === 'true';
   });
 

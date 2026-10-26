@@ -27,12 +27,21 @@ try {
 }
 
 # Check agy.exe
+$userProfile = $env:USERPROFILE
+$geminiAgy = Join-Path $userProfile ".gemini\bin\agy.exe"
 $localAppData = [System.Environment]::GetFolderPath('LocalApplicationData')
-$agyPath = Join-Path $localAppData "agy\bin\agy.exe"
-if (Test-Path $agyPath) {
+$localAgy = Join-Path $localAppData "agy\bin\agy.exe"
+
+$agyPath = if (Test-Path $geminiAgy) { $geminiAgy } elseif (Test-Path $localAgy) { $localAgy } else { $null }
+
+if ($agyPath) {
     Write-Host "• Antigravity CLI: $agyPath" -ForegroundColor Green
+    $agyDir = Split-Path $agyPath
+    if ($env:PATH -notlike "*$agyDir*") {
+        $env:PATH = "$agyDir;$env:PATH"
+    }
 } else {
-    Write-Host "⚠️ Khong tim thay agy.exe tai $agyPath, se su dung PATH he thong neu co." -ForegroundColor Yellow
+    Write-Host "⚠️ Khong tim thay agy.exe tai $geminiAgy hoac $localAgy, se su dung PATH he thong neu co." -ForegroundColor Yellow
 }
 
 # Check node_modules

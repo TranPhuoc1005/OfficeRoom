@@ -34,7 +34,7 @@ body, button, input, textarea, select {
 
 .entrance-scene {
   position: absolute;
-  background: url('/assets/entrance.png') center/100% 100% no-repeat;
+  background: url('/assets/entrance-white-v13.png') center/100% 100% no-repeat;
   overflow: hidden;
 }
 

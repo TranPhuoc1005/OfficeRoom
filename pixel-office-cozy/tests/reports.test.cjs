@@ -1,0 +1,14 @@
+const vm=require('node:vm'),fs=require('node:fs'),assert=require('node:assert/strict');
+const storage=new Map(),events=[];let hasPrinter=true;
+const tasks=[{id:'t1',agentId:'a1',title:'Report one',result:'Actual output <html>\nline 2',status:'review'}];
+const ctx={data:{tasks,agents:[{id:'a1',name:'One'},{id:'a2',name:'Two'}]},agent:id=>({name:id}),localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v)},document:{querySelector:()=>({onclick:null,querySelector:()=>({textContent:''})})},window:{addEventListener:()=>{},officeLayout:{printer:()=>hasPrinter?{x:100,y:100}:null},dispatchEvent:e=>events.push(e)},CustomEvent:function(type,a){this.type=type;this.detail=a.detail},toast:()=>{},URL:{},Blob,Date,console};
+vm.createContext(ctx);vm.runInContext(fs.readFileSync(require('node:path').join(__dirname,'../preview/office-reports.js'),'utf8'),ctx);const r=ctx.window.officeReports;
+r.sync();r.sync();assert.equal(JSON.parse(storage.get('pixel-office-reports-v6')).length,1,'same result does not duplicate');
+hasPrinter=false;assert.equal(r.claim('a1'),null,'no machine does not pretend to print');hasPrinter=true;
+assert.equal(r.claim('a2'),null);const job=r.claim('a1');assert(job);assert.equal(r.claim('a2'),null,'one printer processes one report');
+assert.equal(r.advance(job.id,1),false);assert.equal(r.advance(job.id,.5),true);assert.equal(events.length,1);let saved=JSON.parse(storage.get('pixel-office-reports-v6'));assert.equal(saved[0].state,'published');assert.equal(saved[0].content,tasks[0].result,'output preserved exactly');
+r.sync();assert.equal(JSON.parse(storage.get('pixel-office-reports-v6')).length,1);
+tasks[0].result='draft change';r.sync();assert.equal(JSON.parse(storage.get('pixel-office-reports-v6')).length,1,'draft edits do not publish');
+r.markReady(tasks[0]);r.sync();assert.equal(JSON.parse(storage.get('pixel-office-reports-v6')).length,2,'explicit resubmission creates new revision');
+ctx.data.agents=[];assert.equal(r.claim('a1'),null,'deleted agent cannot lock printer');
+console.log('PASS: output preservation, duplicate prevention, no printer, serial queue, revisions, drafts, missing agent');

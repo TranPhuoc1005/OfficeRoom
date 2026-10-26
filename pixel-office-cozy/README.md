@@ -1,31 +1,18 @@
-# Pixel Office — Cozy Edition / thiết kế v4
+# Pixel Office v14 — Pantry hiện đại cho văn phòng trắng
 
-Bản thiết kế mới theo hình Pixel Office ấm áp đã được chọn: tranh pixel minh họa chi tiết, nội thất gỗ và cây xanh, ánh nắng vàng, nhân vật chibi có tóc/quần áo/phụ kiện riêng. Thay thế các gói layout v1-v3 trước đó.
+Quầy pantry mới: tủ trắng phẳng, ngăn kéo xanh xám nhạt, tay nắm bạc, mặt quartz sáng và chân tủ liền. Có bồn rửa/vòi chrome, máy cà phê, lò vi sóng, cốc xanh và một chậu cây nhỏ. Bỏ thiết kế gỗ nâu/xanh đậm, kệ treo, dây leo, khăn caro kiểu quán cà phê. Đủ4ảnh trước/phải/sau/trái, tự thay hình cho tất cả object type pantrycounter đang có; không cần xóa đặt lại, không đổi vị trí/chủ/roomId. Tủ lạnh và nhân vật giữ nguyên.
 
-## Cách đưa qua Antigravity
+Đã cập nhật preview, catalog thumbnail, renderer và prompt Antigravity. Các chức năng/bố cục v13 giữ nguyên.
 
-1. Giải nén, đặt folder `pixel-office-cozy` vào dự án AgentOffice hiện có.
-2. Mở chính dự án đó trong Antigravity.
-3. Copy toàn bộ PROMPT_CHO_ANTIGRAVITY.txt và gửi cho Agent.
-4. Yêu cầu port giao diện và dùng đúng các file ảnh kèm theo; giữ hệ thống thật đang có.
+# Pixel Office v13 — Toàn bộ sàn có thể thiết kế
 
-## Xem thử
+Bản thiết kế frontend và bộ source để chuyển vào Antigravity. Mở preview bằng static server như trước. Giữ nguyên bộ nhân vật chibi gốc.
 
-Mở preview/index.html. Bấm “Vào văn phòng mẫu” hoặc “Khám phá bản mẫu”. Có thể vào thẳng nội thất bằng `index.html?view=office`.
+- Đặt đồ theo chân đế tới sát mép phải và xuống cuối sàn; bỏ giới hạn cũ 82% chiều cao. Lưới thiết kế cũng phủ tới đáy.
+- Hai vách cùng loại, cùng trục, cùng kích thước và cùng nhóm phòng sẽ gộp khi nối đầu hoặc chồng lên nhau. Giữ ID của đoạn đang chọn; một lần Hoàn tác trả lại hai đoạn.
+- Cửa đổi sang khung và cánh kính trượt, có trạng thái mở/đóng thật trong mô hình đường đi.
+- WC và pantry: chọn cả phòng rồi bấm ↻90° hoặc R. Cả nền, tường, cửa, nội thất xoay quanh tâm. Nếu vướng đồ khác/mép sàn, app báo lý do; dời phòng ra chỗ trống trước.
+- Kho chỉ hiển thị đồ hiện hành. Bàn/ghế gỗ, sofa xanh, thảm xanh, kệ và đồ trang trí đời đầu được bỏ khỏi kho. Đồ cũ đang đặt được chuyển sang mẫu trắng tương ứng; thảm xanh bỏ khỏi scene. Lưu bản sao trước chuyển đổi tại key bố cục có hậu tố -before-white-v13. ID, chủ sở hữu và liên kết bàn được giữ; bàn cũ có laptop liền được bổ sung màn hình rời nếu đủ giới hạn100vật.
+- Cảnh đăng nhập mới là văn phòng trắng sáng, giữ nét chibi. Đây vẫn là giao diện minh họa đăng nhập, không phải Auth thật.
 
-Đây là prototype giao diện. Trường đăng nhập là minh họa readonly, không gửi/lưu mật khẩu, không phải Supabase Auth. Task trong preview là luồng thủ công có localStorage của bản mẫu. Không đưa cơ chế bypass/demo này vào ứng dụng production.
-
-## Nội dung gói
-
-- preview/: source chạy trực tiếp, gồm layout lễ tân, nội thất, dock, panel đội/task/history/settings, form agent và chọn 4 ngoại hình.
-- preview/assets/entrance.png: nền lễ tân KHÔNG có form/chữ UI; dùng HTML thật phía trên.
-- preview/assets/office-interior.png: nền nội thất chi tiết, không có nhân vật baked-in.
-- preview/assets/characters-atlas.png: PNG alpha thật, 4 hàng x 4 cột; bộ nhân vật mới.
-- preview/assets/atlas.json: metadata và cách ánh xạ hướng/khung hình.
-- components/illustrated-sprites.js: renderer sprite độc lập để tái sử dụng trong React.
-- reference/login-concept.png: concept đã chọn, chỉ dùng đối chiếu phong cách, không lấy làm form tương tác.
-- DESIGN_GUIDE.md: thiết kế và giới hạn artwork.
-- INTEGRATION.md: ánh xạ sang runtime/Auth/Supabase đang có.
-- QA.md: những kiểm tra đã chạy.
-
-Assets được tạo bằng ImageGen theo brief trong ASSET_BRIEFS.md. Gói không có tài khoản, API key, database, task của người dùng, cấu hình hosting hoặc source Antigravity trên máy Windows.
+Chức năng backend, Auth, Supabase, CLI/runner chưa được nối trong preview này. PROMPT_CHO_ANTIGRAVITY.txt hướng dẫn đưa vào app thật và giữ nguyên các phần đó. Tùy chỉnh quần/áo/tóc bằng layer chibi vẫn chưa hoàn thiện; bộ8nhân vật chibi gốc vẫn được dùng.

@@ -1,0 +1,47 @@
+/* Editor furniture and actor feet share one depth-sorted world. */
+.office-art{background-image:url('assets/room-shell.png')}
+.cozy-actor.walking canvas{animation:none!important}
+.decor-object{position:absolute;transform:translate(-50%,-100%);padding:0!important;border:0!important;border-radius:0;background:none!important;box-shadow:none!important;pointer-events:none;isolation:isolate;overflow:visible;touch-action:none;opacity:1!important;filter:none!important}
+.decor-object canvas{width:100%;height:100%;display:block;transform:scaleX(var(--flip,1));pointer-events:none}
+.decor-object-tag{display:none;position:absolute;bottom:4%;left:50%;transform:translateX(-50%);padding:4px 9px;background:#fff2d7;border:1px solid #a88b53;border-radius:5px;white-space:nowrap;font-size:10px;color:#475f38;pointer-events:none}
+.decorating .decor-object{pointer-events:auto;cursor:grab}
+.decorating .decor-object.dragging{cursor:grabbing}
+.decorating .decor-object:hover canvas{filter:drop-shadow(0 0 3px #ffdf9b)}
+.decorating .decor-object.decor-selected canvas{filter:drop-shadow(2px 0 #fff0b2) drop-shadow(-2px 0 #fff0b2) drop-shadow(0 2px #fff0b2) drop-shadow(0 -2px #fff0b2)}
+.decorating .decor-object.decor-selected .decor-object-tag{display:block}
+.decorating .cozy-actor{pointer-events:none;opacity:.6}
+.decorating .cozy-actor .actor-name{opacity:.7}
+.decor-panel{position:fixed;z-index:24;bottom:140px;left:50%;transform:translateX(-50%);width:min(1000px,calc(100vw - 32px));color:#4f6040;background:#fff2d8f7;border:2px solid #b39259;border-bottom:5px solid #785b32;border-radius:12px;box-shadow:0 12px 45px #35210955;backdrop-filter:blur(12px);overflow:hidden}
+.decor-panel header{display:flex;align-items:center;gap:7px;padding:11px 15px;background:#f4e5bf;border-bottom:1px solid #d1b67e}
+.decor-panel h2{font-size:18px;margin:2px 0 0;letter-spacing:-.5px}
+.decor-panel header small{font-size:7px;letter-spacing:1.7px;color:#927a4f}
+.decor-panel header>div{margin-right:auto}
+.decor-panel button{background:#fff3d8;color:#6c7048;border:1px solid #bba16d;border-bottom:3px solid #a58b53;padding:7px 10px;border-radius:5px;font-size:11px}
+.decor-panel button:disabled{opacity:.35;cursor:default}
+.decor-panel button.primary{background:#587346;color:#fff4da}
+#layoutSaved{font-size:9px;color:#87915e;margin-right:12px}
+.decor-content{display:grid;grid-template-columns:1fr 240px;max-height:220px}
+.decor-catalog{display:grid;grid-template-columns:repeat(9,minmax(66px,1fr));gap:6px;padding:13px;overflow:auto;align-items:start}
+.decor-catalog .catalog-item{background:#f6ebcd;border-color:#d2bd8d;padding:4px 2px 9px;min-height:112px;display:flex;flex-direction:column;align-items:center}
+.catalog-item canvas{width:72px;max-width:100%;height:78px;object-fit:contain}
+.catalog-item span{font-size:9px;white-space:nowrap}
+.catalog-item:hover{background:#e0e6c5!important;border-color:#869963!important}
+.decor-inspector{padding:13px 15px;background:#e9e5c680;border-left:1px solid #d7c297;font-size:11px}
+.decor-inspector p{font-size:10px;line-height:1.8;color:#93815c}
+.decor-inspector label{display:block;font-size:10px;margin:0 0 8px;color:#83764f}
+.decor-inspector input:not([type=range]){display:block;background:#fff8e6;border:1px solid #c5af7e;border-radius:4px;padding:6px 8px;width:100%;margin:4px 0;color:#4e6540;font-size:11px}
+.decor-inspector input[type=range]{width:100%;display:block;accent-color:#6d864e;cursor:ew-resize;margin:6px 0}
+.decor-inspector output{float:right;color:#4f7041}
+.decor-actions{display:flex;gap:4px;margin:8px 0}
+.decor-actions button{font-size:10px;padding:5px 7px}
+.decor-actions .danger{color:#a35b43}
+.decor-inspector small{font-size:8px;color:#9b855f}
+.decor-panel footer{display:flex;justify-content:space-between;align-items:center;padding:7px 15px;border-top:1px solid #ddc99f;font-size:9px;color:#99845b}
+.decor-panel footer button{font-size:9px;padding:4px 7px;background:none;border-bottom-width:1px}
+.decor-panel.collapsed .decor-content,.decor-panel.collapsed footer{display:none}
+.game-dock{gap:2px}.game-dock button{min-width:65px}.dock-wrap{width:min(860px,calc(100% - 170px))}
+#decorToggle .dock-icon{font-size:30px;line-height:25px}
+@media(max-width:800px){.dock-wrap{width:calc(100% - 20px)}.game-dock button{min-width:0;flex:1;font-size:8px;padding:4px 2px}.game-dock button.dock-assign{min-width:60px}.dock-separator{display:none}.decor-panel{bottom:130px;width:calc(100vw - 20px)}.decor-panel header{padding:9px;gap:5px}.decor-panel header h2{font-size:15px}.decor-panel header button{padding:6px;font-size:9px}#layoutSaved{display:none}.decor-content{grid-template-columns:1fr;max-height:280px;overflow:auto}.decor-catalog{grid-template-columns:repeat(9,70px);padding:9px}.decor-catalog .catalog-item{min-height:92px}.catalog-item canvas{height:64px}.decor-inspector{border-left:0;border-top:1px solid #d2bc8f;padding:10px}.decor-inspector p{margin:6px 0}.decor-inspector #decorFields{display:grid;grid-template-columns:1fr 1fr;column-gap:12px}.decor-inspector #decorFields.hidden{display:none}.decor-actions{margin:0}.decor-inspector small{align-self:center}.decor-panel footer{padding:5px 10px}.decor-object-tag{font-size:8px}}
+@media(prefers-reduced-motion:reduce){.decor-object{transition:none}}
+
+.decor-panel header{margin:0;justify-content:flex-start}.decor-inspector label{margin:0 0 8px}.decor-panel.collapsed header{border-bottom:0}.decor-content{max-height:190px}.decor-catalog{align-items:center}#decorEmpty{align-self:center}@media(max-width:800px){.decor-content{max-height:260px}}

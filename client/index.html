@@ -9,6 +9,48 @@
   </head>
   <body>
     <div id="root"></div>
+    <dialog id="modal"><div class="modal-head"><h2 id="modalTitle"></h2><button id="closeModal" class="small" aria-label="Đóng">✕</button></div><div class="modal-body" id="modalBody"></div></dialog>
+    <div class="toast hidden" id="toast" role="status"></div>
+    <script>
+      window.$ = window.$ || (s => document.querySelector(s));
+      window.$$ = window.$$ || (s => [...document.querySelectorAll(s)]);
+      window.data = window.data || { version: 1, agents: [], tasks: [] };
+      window.agent = window.agent || (id => (window.data?.agents || []).find(a => a.id === id));
+      window.esc = window.esc || (v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])));
+      window.toast = window.toast || (s => { console.log(s); const t = document.querySelector('#toast'); if (t) { t.textContent = s; t.classList.remove('hidden'); setTimeout(() => t.classList.add('hidden'), 4000); } });
+      window.modal = (title, html) => {
+        const m = document.querySelector('#modal');
+        const t = document.querySelector('#modalTitle');
+        const b = document.querySelector('#modalBody');
+        if (!m || !t || !b) return;
+        t.textContent = title;
+        b.innerHTML = html;
+        b.querySelectorAll('label').forEach(l => {
+          const n = l.nextElementSibling;
+          if (n?.id && ['INPUT', 'TEXTAREA', 'SELECT'].includes(n.tagName)) l.htmlFor = n.id;
+        });
+        if (!m.open) m.showModal();
+      };
+      document.addEventListener('click', e => {
+        if (e.target && e.target.id === 'closeModal') {
+          const m = document.querySelector('#modal');
+          if (m) m.close();
+        }
+      });
+      window.gameSyncHud = window.gameSyncHud || (() => {});
+      window.gameOpenPanel = window.gameOpenPanel || ((v) => {});
+    </script>
+    <script src="/engine/office-workstations.js"></script>
+    <script src="/engine/office-rooms.js"></script>
+    <script src="/engine/office-attachments.js"></script>
+    <script src="/engine/office-navigation.js"></script>
+    <script src="/engine/office-reports.js"></script>
+    <script src="/engine/office-life.js"></script>
+    <script src="/engine/office-planner.js"></script>
+    <script src="/engine/planner-renderer.js"></script>
+    <script src="/engine/cozy-office.js"></script>
+    <script src="/engine/straight-office.js"></script>
+    <script src="/engine/decor-editor.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

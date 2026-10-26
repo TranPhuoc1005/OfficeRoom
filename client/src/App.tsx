@@ -4,7 +4,6 @@ import { PixelOfficeCanvas } from './PixelOfficeCanvas';
 import { FolderBrowserModal } from './FolderBrowserModal';
 import { getDefaultOfficeFurniture } from './furniture-data';
 import type { PlacedFurniture, FurnitureDefinition } from './furniture-data';
-import { FurnitureCatalogDock } from './FurnitureCatalogDock';
 import { AgentModal } from './AgentModal';
 import { AgentEditModal } from './AgentEditModal';
 import {
@@ -18,7 +17,16 @@ import { RunnerModal } from './RunnerModal';
 import { ProjectSelectModal } from './ProjectSelectModal';
 import { drawIllustratedPortrait, getAgentVariant } from './illustrated-sprites';
 import './App.css';
-import './cozy.css';
+import './styles/game-layout.css';
+import './styles/cozy.css';
+import './styles/decor-editor.css';
+import './styles/white-office.css';
+import './styles/workstations.css';
+import './styles/attachments.css';
+import './styles/living-office.css';
+import './styles/planner.css';
+import './styles/straight-office.css';
+import './styles/office-rail.css';
 
 type GameView = 'office' | 'team' | 'tasks' | 'history' | 'settings';
 
@@ -88,14 +96,13 @@ export default function App() {
 
   // Office Decoration State
   const [furniture, setFurniture] = useState<PlacedFurniture[]>([]);
-  const [initialFurnitureSnapshot, setInitialFurnitureSnapshot] = useState<PlacedFurniture[]>([]);
-  const [undoStack, setUndoStack] = useState<PlacedFurniture[][]>([]);
-  const [isDecorating, setIsDecorating] = useState<boolean>(false);
+  const [, setInitialFurnitureSnapshot] = useState<PlacedFurniture[]>([]);
+  const [, setUndoStack] = useState<PlacedFurniture[][]>([]);
+  const [isDecorating] = useState<boolean>(false);
   const [selectedCatalogItem, setSelectedCatalogItem] = useState<FurnitureDefinition | null>(null);
   const [selectedPlacedItem, setSelectedPlacedItem] = useState<PlacedFurniture | null>(null);
-  const [furnitureLayoutVersion, setFurnitureLayoutVersion] = useState<number>(1);
-  const [isSavingLayout, setIsSavingLayout] = useState<boolean>(false);
-  const [isDeleteMode, setIsDeleteMode] = useState<boolean>(false);
+  const [, setFurnitureLayoutVersion] = useState<number>(1);
+  const [isDeleteMode] = useState<boolean>(false);
 
   const isDecoratingRef = useRef(false);
   useEffect(() => {
@@ -382,110 +389,9 @@ export default function App() {
   );
 
   // Decoration Mode Toggle & Actions
-  const handleToggleDecorating = () => {
-    if (!isDecorating) {
-      setInitialFurnitureSnapshot(JSON.parse(JSON.stringify(furniture)));
-      setUndoStack([]);
-      setSelectedCatalogItem(null);
-      setSelectedPlacedItem(null);
-      setIsDeleteMode(false);
-      setIsDecorating(true);
-      setCurrentView('office');
-      showToast('🔨 Đã bật chế độ trang trí. Chọn đồ nội thất từ thanh bên dưới để đặt.');
-    } else {
-      handleCancelDecorate();
-    }
-  };
-
   const handleUpdateFurniture = (newFurniture: PlacedFurniture[]) => {
     setUndoStack((prev) => [...prev, JSON.parse(JSON.stringify(furniture))]);
     setFurniture(newFurniture);
-  };
-
-  const handleUndoDecorate = () => {
-    if (undoStack.length === 0) return;
-    const previous = undoStack[undoStack.length - 1];
-    setUndoStack((prev) => prev.slice(0, -1));
-    setFurniture(previous);
-    setSelectedPlacedItem(null);
-  };
-
-  const handleCancelDecorate = () => {
-    setFurniture(JSON.parse(JSON.stringify(initialFurnitureSnapshot)));
-    setIsDecorating(false);
-    setSelectedCatalogItem(null);
-    setSelectedPlacedItem(null);
-    setIsDeleteMode(false);
-    setUndoStack([]);
-    showToast('Đã hủy các thay đổi trang trí.');
-  };
-
-  const handleSaveDecorate = async () => {
-    setIsSavingLayout(true);
-    try {
-      const nextVersion = furnitureLayoutVersion + 1;
-      let cloudSaved = false;
-
-      // 1. Save to Supabase Cloud if connected
-      if (isSupabaseActive && supabase && officeId) {
-        try {
-          const { error } = await supabase
-            .from('offices')
-            .update({
-              layout: furniture,
-              layout_version: nextVersion,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', officeId);
-
-          if (!error) {
-            cloudSaved = true;
-          } else {
-            console.warn('Supabase layout sync notice:', error.message);
-          }
-        } catch (sErr) {
-          console.warn('Supabase update notice:', sErr);
-        }
-      }
-
-      // 2. Always persist to Backend SQLite API as reliable storage
-      try {
-        await fetch('/api/layout', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ layout: furniture, version: nextVersion })
-        });
-      } catch (beErr) {
-        console.warn('Backend API save notice:', beErr);
-      }
-
-      // 3. Always save to LocalStorage backup
-      try {
-        const storageKey = officeId ? `pixel_office_layout_${officeId}` : 'pixel_office_layout_default';
-        localStorage.setItem(storageKey, JSON.stringify({ layout: furniture, version: nextVersion }));
-      } catch (lsErr) {
-        console.warn('LocalStorage save notice:', lsErr);
-      }
-
-      // 4. Update UI State smoothly
-      setFurnitureLayoutVersion(nextVersion);
-      setInitialFurnitureSnapshot(JSON.parse(JSON.stringify(furniture)));
-      setIsDecorating(false);
-      setSelectedCatalogItem(null);
-      setSelectedPlacedItem(null);
-      setIsDeleteMode(false);
-      setUndoStack([]);
-
-      if (cloudSaved) {
-        showToast('✓ Đã lưu bố cục văn phòng lên Cloud & Máy cục bộ!');
-      } else {
-        showToast('✓ Đã lưu bố cục văn phòng thành công!');
-      }
-    } catch (err: any) {
-      showToast(`Lỗi: ${err.message}`);
-    } finally {
-      setIsSavingLayout(false);
-    }
   };
 
   const handleDeletePlacedItem = (id: string) => {
@@ -500,28 +406,6 @@ export default function App() {
       showToast(`🗑️ Đã xóa bàn làm việc. ${ag?.name || 'Agent'} hiện chưa có bàn riêng (có thể Hoàn tác).`);
     } else {
       showToast('🗑️ Đã xóa món đồ khỏi phòng.');
-    }
-  };
-
-  const handleAssignDeskAgent = (placedId: string, agentId: string | null) => {
-    const updated = furniture.map((f) => {
-      if (f.id === placedId) {
-        return { ...f, assignedAgentId: agentId };
-      }
-      if (agentId && f.assignedAgentId === agentId) {
-        return { ...f, assignedAgentId: null };
-      }
-      return f;
-    });
-
-    handleUpdateFurniture(updated);
-    setSelectedPlacedItem((prev) => (prev ? { ...prev, assignedAgentId: agentId } : null));
-
-    if (agentId) {
-      const ag = agents.find((a) => a.id === agentId);
-      showToast(`Đã gán bàn cho ${ag?.name || 'Agent'}`);
-    } else {
-      showToast('Đã hủy gán chủ bàn.');
     }
   };
 
@@ -741,8 +625,109 @@ export default function App() {
     };
   }, [isSupabaseActive, officeId, loadAgents, loadAllTasks, loadRunnersAndProjects]);
 
+  // Local WebSocket connection for real-time CLI stream in Local Mode
+  useEffect(() => {
+    if (isSupabaseActive) return;
 
+    let ws: WebSocket | null = null;
+    let reconnectTimeout: any = null;
+    let isMounted = true;
 
+    const connectLocalWs = () => {
+      try {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws`;
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+          if (!isMounted) return;
+          setWsConnected(true);
+        };
+
+        ws.onmessage = (event) => {
+          if (!isMounted) return;
+          try {
+            const data = JSON.parse(event.data);
+            if (data.type === 'connected') {
+              setWsConnected(true);
+            } else if (data.type === 'tool') {
+              setActiveTasks((prev) => {
+                const cur = prev.get(data.agentId);
+                if (!cur) return prev;
+                const next = new Map(prev);
+                next.set(data.agentId, {
+                  ...cur,
+                  current_activity: data.data?.toolName ? `Đang gọi ${data.data.toolName}...` : cur.current_activity
+                });
+                return next;
+              });
+            } else if (data.type === 'text_delta') {
+              setActiveTasks((prev) => {
+                const cur = prev.get(data.agentId);
+                if (!cur) return prev;
+                const next = new Map(prev);
+                next.set(data.agentId, {
+                  ...cur,
+                  response_text: (cur.response_text || '') + (data.data?.text || '')
+                });
+                return next;
+              });
+            } else if (data.type === 'completed') {
+              setActiveTasks((prev) => {
+                const next = new Map(prev);
+                next.delete(data.agentId);
+                return next;
+              });
+              setAgents((prev) =>
+                prev.map((a) => (a.id === data.agentId ? { ...a, isBusy: false, activeTaskId: null } : a))
+              );
+              loadAgents().then((ag) => {
+                if (ag) loadAllTasks(ag);
+              });
+              playNotificationSound('success');
+              showToast('✓ Agent đã hoàn tất công việc!');
+            } else if (data.type === 'error' || data.type === 'interrupted') {
+              setActiveTasks((prev) => {
+                const next = new Map(prev);
+                next.delete(data.agentId);
+                return next;
+              });
+              setAgents((prev) =>
+                prev.map((a) => (a.id === data.agentId ? { ...a, isBusy: false, activeTaskId: null } : a))
+              );
+              loadAgents().then((ag) => {
+                if (ag) loadAllTasks(ag);
+              });
+            }
+          } catch {}
+        };
+
+        ws.onclose = () => {
+          if (!isMounted) return;
+          setWsConnected(false);
+          reconnectTimeout = setTimeout(connectLocalWs, 3000);
+        };
+
+        ws.onerror = () => {
+          if (!isMounted) return;
+          setWsConnected(false);
+          ws?.close();
+        };
+      } catch {
+        if (isMounted) {
+          reconnectTimeout = setTimeout(connectLocalWs, 3000);
+        }
+      }
+    };
+
+    connectLocalWs();
+
+    return () => {
+      isMounted = false;
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (ws) ws.close();
+    };
+  }, [isSupabaseActive, loadAgents, loadAllTasks]);
   // Fullscreen helper
   const toggleFullscreen = async () => {
     try {
@@ -2090,9 +2075,9 @@ export default function App() {
         <nav className="game-dock" aria-label="Chức năng văn phòng">
           <button
             data-view="office"
-            className={currentView === 'office' && !isDecorating ? 'active' : ''}
+            className={currentView === 'office' ? 'active' : ''}
             onClick={() => {
-              if (isDecorating) handleCancelDecorate();
+              (window as any).officeLayout?.setEditing?.(false);
               switchView('office');
             }}
           >
@@ -2102,21 +2087,10 @@ export default function App() {
           </button>
 
           <button
-            type="button"
-            className={`dock-decor-btn ${isDecorating ? 'active' : ''}`}
-            onClick={handleToggleDecorating}
-            title="Bật/Tắt chế độ trang trí văn phòng"
-          >
-            <span className="dock-icon">{renderSvgIcon('decor')}</span>
-            <span>{isDecorating ? 'Đang trang trí' : 'Trang trí'}</span>
-            <i></i>
-          </button>
-
-          <button
             data-view="team"
             className={currentView === 'team' ? 'active' : ''}
             onClick={() => {
-              if (isDecorating) handleCancelDecorate();
+              (window as any).officeLayout?.setEditing?.(false);
               switchView('team');
             }}
           >
@@ -2162,6 +2136,30 @@ export default function App() {
             <span className="dock-icon">{renderSvgIcon('history')}</span>
             <span>Lịch sử</span>
             <i></i>
+          </button>
+
+          <button
+            id="decorToggle"
+            type="button"
+            aria-pressed="false"
+          >
+            <span className="dock-icon">✥</span>
+            <span>Trang trí</span>
+          </button>
+
+          <button
+            id="reportsButton"
+            type="button"
+            onClick={() => {
+              if ((window as any).officeReports && typeof (window as any).officeReports.open === 'function') {
+                (window as any).officeLayout?.setEditing?.(false);
+                (window as any).officeReports.open();
+              }
+            }}
+            title="Mở máy in và danh sách báo cáo"
+          >
+            <span className="dock-icon">▤</span>
+            <span>Báo cáo</span>
           </button>
 
           <button
@@ -2286,31 +2284,6 @@ export default function App() {
         />
       )}
 
-      {/* FURNITURE CATALOG DOCK (DECORATION MODE) */}
-      <FurnitureCatalogDock
-        isOpen={isDecorating}
-        onClose={handleCancelDecorate}
-        selectedCatalogItem={selectedCatalogItem}
-        onSelectCatalogItem={(item) => {
-          setSelectedCatalogItem(item);
-          if (item) setIsDeleteMode(false);
-        }}
-        selectedPlacedItem={selectedPlacedItem}
-        onSelectPlacedItem={setSelectedPlacedItem}
-        onDeletePlacedItem={handleDeletePlacedItem}
-        onAssignDeskAgent={handleAssignDeskAgent}
-        agents={agents}
-        canUndo={undoStack.length > 0}
-        onUndo={handleUndoDecorate}
-        onSave={handleSaveDecorate}
-        onCancel={handleCancelDecorate}
-        isSaving={isSavingLayout}
-        isDeleteMode={isDeleteMode}
-        onToggleDeleteMode={() => {
-          setIsDeleteMode(!isDeleteMode);
-          if (!isDeleteMode) setSelectedCatalogItem(null);
-        }}
-      />
 
       {/* TASK FORM MODAL (Giao việc / Chỉnh sửa công việc) */}
       {isTaskFormModalOpen && (

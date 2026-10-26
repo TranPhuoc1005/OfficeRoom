@@ -89,7 +89,7 @@ export default function App() {
   });
 
   const isSupabaseActive = isSupabaseConfigured() && !isLocalOnlyMode;
-  const isRunnerOnline = runners.length > 0 && runners[0].isOnline;
+  const isRunnerOnline = runners.some((r) => r.isOnline);
 
   // Modals state
   const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);
@@ -280,7 +280,11 @@ export default function App() {
     if (!isSupabaseActive || !supabase || !officeId) return;
     try {
       const [runnersRes, projectsRes] = await Promise.all([
-        supabase.from('runners').select('*').eq('office_id', officeId),
+        supabase
+          .from('runners')
+          .select('*')
+          .eq('office_id', officeId)
+          .order('last_heartbeat_at', { ascending: false, nullsFirst: false }),
         supabase.from('projects').select('*').eq('office_id', officeId)
       ]);
 
@@ -854,11 +858,12 @@ export default function App() {
             showToast('Đã gửi tác vụ lên hệ thống! ⚡');
           }
 
+          const targetRunner = runners.find((r) => r.isOnline) || runners[0];
           const { error } = await supabase.from('tasks').insert({
             id: newTaskId,
             office_id: officeId,
             agent_id: targetAgentId,
-            runner_id: runners[0]?.id || null,
+            runner_id: targetRunner?.id || null,
             folder_path: targetAgent?.folder_path || '',
             conversation_id: targetAgent?.conversation_id || null,
             title,

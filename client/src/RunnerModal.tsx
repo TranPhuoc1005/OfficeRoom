@@ -24,6 +24,7 @@ export const RunnerModal: React.FC<RunnerModalProps> = ({
   } | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -47,6 +48,24 @@ export const RunnerModal: React.FC<RunnerModalProps> = ({
     }
   };
 
+  const handleDeleteRunner = async (runnerId: string, runnerName: string) => {
+    if (!confirm(`Bạn có chắc muốn xóa thiết bị Runner "${runnerName}" khỏi văn phòng?`)) return;
+    if (!supabase) return;
+    setDeletingId(runnerId);
+    try {
+      const { error } = await supabase.from('runners').delete().eq('id', runnerId);
+      if (error) {
+        alert(`Lỗi xóa: ${error.message}`);
+      } else {
+        onRefresh();
+      }
+    } catch (err: any) {
+      alert(`Lỗi: ${err.message}`);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const copyEnvBlock = () => {
     if (!createdPair) return;
     const block = `SUPABASE_URL=${import.meta.env.VITE_SUPABASE_URL}
@@ -59,9 +78,6 @@ RUNNER_NAME=${createdPair.name}
     setCopied(true);
     setTimeout(() => setCopied(false), 3000);
   };
-
-  const mainRunner = runners[0];
-  const isOnline = mainRunner?.isOnline;
 
   return (
     <div
@@ -85,7 +101,7 @@ RUNNER_NAME=${createdPair.name}
       <div
         className="modal-card"
         style={{
-          maxWidth: '560px',
+          maxWidth: '620px',
           width: '92%',
           maxHeight: '90vh',
           overflowY: 'auto',
@@ -98,7 +114,7 @@ RUNNER_NAME=${createdPair.name}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span>🖥️</span> Quản Lý Windows Local Runner
+            <span>🖥️</span> Quản Lý Windows Local Runner ({runners.length})
           </h2>
           <button
             onClick={onClose}
@@ -114,74 +130,118 @@ RUNNER_NAME=${createdPair.name}
           </button>
         </div>
 
-        {/* Runner Status Card */}
-        <div
-          style={{
-            padding: '16px',
-            backgroundColor: isOnline ? '#f0fdf4' : '#fef2f2',
-            border: `2px solid ${isOnline ? '#22c55e' : '#ef4444'}`,
-            borderRadius: '6px',
-            marginBottom: '18px'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span
-                style={{
-                  width: '12px',
-                  height: '12px',
-                  borderRadius: '50%',
-                  backgroundColor: isOnline ? '#22c55e' : '#ef4444',
-                  boxShadow: `0 0 8px ${isOnline ? '#22c55e' : '#ef4444'}`,
-                  display: 'inline-block'
-                }}
-              />
-              <span style={{ fontWeight: 'bold', fontSize: '15px' }}>
-                {mainRunner?.name || 'Windows Runner'}
-              </span>
+        {/* Runners List */}
+        <div style={{ marginBottom: '18px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {runners.length === 0 ? (
+            <div style={{ padding: '16px', border: '1px dashed #cbd5e1', borderRadius: '6px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>
+              Chưa có máy Runner nào được kết nối với văn phòng này. Bấm nút bên dưới để tạo mã kết nối.
             </div>
-            <span
-              style={{
-                fontSize: '12px',
-                fontWeight: 'bold',
-                padding: '3px 8px',
-                borderRadius: '4px',
-                backgroundColor: isOnline ? '#dcfce7' : '#fee2e2',
-                color: isOnline ? '#166534' : '#991b1b'
-              }}
-            >
-              {isOnline ? '🟢 ĐANG TRỰC TUYẾN' : '🔴 NGOẠI TUYẾN'}
-            </span>
-          </div>
+          ) : (
+            runners.map((r) => {
+              const isOnline = r.isOnline;
+              const runnerProjects = projects.filter((p) => p.runner_id === r.id);
+              return (
+                <div
+                  key={r.id}
+                  style={{
+                    padding: '14px',
+                    backgroundColor: isOnline ? '#f0fdf4' : '#fef2f2',
+                    border: `2px solid ${isOnline ? '#22c55e' : '#ef4444'}`,
+                    borderRadius: '8px',
+                    position: 'relative'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span
+                        style={{
+                          width: '12px',
+                          height: '12px',
+                          borderRadius: '50%',
+                          backgroundColor: isOnline ? '#22c55e' : '#ef4444',
+                          boxShadow: `0 0 8px ${isOnline ? '#22c55e' : '#ef4444'}`,
+                          display: 'inline-block'
+                        }}
+                      />
+                      <span style={{ fontWeight: 'bold', fontSize: '15px', color: '#0f172a' }}>
+                        {r.name || 'Windows Workstation'}
+                      </span>
+                    </div>
 
-          <div style={{ marginTop: '10px', fontSize: '12px', color: '#475569', lineHeight: '1.6' }}>
-            <div>
-              • <strong>Tín hiệu cuối:</strong>{' '}
-              {mainRunner?.last_heartbeat_at
-                ? new Date(mainRunner.last_heartbeat_at).toLocaleTimeString()
-                : 'Chưa nhận tín hiệu'}
-            </div>
-            {mainRunner?.metadata?.hostname && (
-              <div>• <strong>Máy trạm:</strong> {mainRunner.metadata.hostname} ({mainRunner.metadata.platform})</div>
-            )}
-            {mainRunner?.metadata?.agyBinary && (
-              <div style={{ wordBreak: 'break-all' }}>• <strong>CLI Path:</strong> {mainRunner.metadata.agyBinary}</div>
-            )}
-          </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          fontWeight: 'bold',
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          backgroundColor: isOnline ? '#dcfce7' : '#fee2e2',
+                          color: isOnline ? '#166534' : '#991b1b'
+                        }}
+                      >
+                        {isOnline ? '🟢 TRỰC TUYẾN' : '🔴 NGOẠI TUYẾN'}
+                      </span>
+                      <button
+                        onClick={() => handleDeleteRunner(r.id, r.name)}
+                        disabled={deletingId === r.id}
+                        title="Xóa thiết bị runner này khỏi danh sách văn phòng"
+                        style={{
+                          background: 'none',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: '4px',
+                          padding: '2px 6px',
+                          fontSize: '11px',
+                          color: '#dc2626',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {deletingId === r.id ? '...' : '🗑️ Xóa'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: '8px', fontSize: '12px', color: '#475569', lineHeight: '1.6' }}>
+                    <div>
+                      • <strong>ID:</strong> <code style={{ fontSize: '11px' }}>{r.id}</code>
+                    </div>
+                    <div>
+                      • <strong>Tín hiệu cuối:</strong>{' '}
+                      {r.last_heartbeat_at
+                        ? new Date(r.last_heartbeat_at).toLocaleTimeString()
+                        : 'Chưa nhận tín hiệu'}
+                    </div>
+                    {r.metadata?.hostname && (
+                      <div>
+                        • <strong>Máy trạm:</strong> {r.metadata.hostname} ({r.metadata.platform || 'win32'})
+                      </div>
+                    )}
+                    {r.metadata?.agyBinary && (
+                      <div style={{ wordBreak: 'break-all' }}>
+                        • <strong>CLI Path:</strong> {r.metadata.agyBinary}
+                      </div>
+                    )}
+                    <div>
+                      • <strong>Thư mục dự án:</strong> {runnerProjects.length} thư mục
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
 
-        {/* Registered Projects on Windows */}
+        {/* Registered Projects List */}
         <div style={{ marginBottom: '20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
             <h3 style={{ fontSize: '14px', fontWeight: 'bold', margin: 0 }}>
-              📁 Thư mục dự án trên máy Windows ({projects.length})
+              📁 Thư mục dự án đồng bộ trên máy Windows ({projects.length})
             </h3>
-            <span style={{ fontSize: '11px', color: '#64748b' }}>Đồng bộ từ runner</span>
+            <span style={{ fontSize: '11px', color: '#64748b' }}>Tự động đồng bộ</span>
           </div>
 
           {projects.length === 0 ? (
             <div style={{ padding: '12px', border: '1px dashed #cbd5e1', borderRadius: '6px', fontSize: '13px', color: '#64748b', textAlign: 'center' }}>
-              Chưa có thư mục nào được đồng bộ từ runner. Khi bạn bật runner trên máy Windows, các thư mục dự án sẽ tự động xuất hiện ở đây.
+              Chưa có thư mục nào được đồng bộ từ runner. Khi runner bật, các thư mục dự án sẽ tự động xuất hiện ở đây.
             </div>
           ) : (
             <div style={{ maxHeight: '140px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '6px' }}>

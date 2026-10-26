@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import https from 'node:https';
 import crypto from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
@@ -43,21 +44,54 @@ if (!RUNNER_ID || !RUNNER_SECRET_TOKEN) {
 // Compute SHA-256 hash of secret token
 const secretTokenHash = crypto.createHash('sha256').update(RUNNER_SECRET_TOKEN).digest('hex');
 
-// 2. Initialize Supabase Client with resilient fetch (retries & fresh sockets to prevent Cloudflare idle drop)
-const resilientFetch: typeof fetch = async (input, init) => {
-  let lastErr: any;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      return await fetch(input, {
-        ...init,
-        keepalive: false
+// 2. Initialize Supabase Client with robust HTTPS fetch (eliminates Node 25 Windows undici ECONNRESET)
+const httpsFetch: typeof fetch = (input: any, init: any = {}): Promise<Response> => {
+  const urlStr = typeof input === 'string' ? input : input.url;
+  const u = new URL(urlStr);
+  const reqHeaders: Record<string, string> = {};
+  if (init.headers) {
+    if (typeof init.headers.forEach === 'function') {
+      init.headers.forEach((v: string, k: string) => {
+        reqHeaders[k] = v;
       });
-    } catch (err) {
-      lastErr = err;
-      await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
+    } else {
+      Object.assign(reqHeaders, init.headers);
     }
   }
-  throw lastErr;
+
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      {
+        protocol: u.protocol,
+        hostname: u.hostname,
+        port: u.port || 443,
+        path: u.pathname + u.search,
+        method: init.method || 'GET',
+        headers: reqHeaders
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (chunk) => chunks.push(chunk));
+        res.on('end', () => {
+          const body = Buffer.concat(chunks).toString('utf8');
+          const mockResponse = {
+            ok: res.statusCode ? res.statusCode >= 200 && res.statusCode < 300 : false,
+            status: res.statusCode || 200,
+            statusText: res.statusMessage || 'OK',
+            headers: new Headers(res.headers as any),
+            text: async () => body,
+            json: async () => JSON.parse(body || '{}')
+          } as unknown as Response;
+          resolve(mockResponse);
+        });
+      }
+    );
+    req.on('error', reject);
+    if (init.body) {
+      req.write(typeof init.body === 'string' ? init.body : JSON.stringify(init.body));
+    }
+    req.end();
+  });
 };
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -65,7 +99,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     persistSession: false
   },
   global: {
-    fetch: resilientFetch
+    fetch: httpsFetch
   }
 });
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import type { Agent, Task } from './types';
+import type { Agent, Task, AgentAvatar } from './types';
 import { PixelOfficeCanvas } from './PixelOfficeCanvas';
 import { FolderBrowserModal } from './FolderBrowserModal';
 import { getDefaultOfficeFurniture } from './furniture-data';
@@ -15,7 +15,7 @@ import type { RunnerInfo, ProjectInfo } from './supabase';
 import { ReceptionScreen } from './ReceptionScreen';
 import { RunnerModal } from './RunnerModal';
 import { ProjectSelectModal } from './ProjectSelectModal';
-import { drawIllustratedPortrait, getAgentVariant } from './illustrated-sprites';
+import { drawIllustratedPortrait, getAgentVariant, COZY_VARIANTS, drawIllustratedSprite } from './illustrated-sprites';
 import './App.css';
 import './styles/game-layout.css';
 import './styles/cozy.css';
@@ -95,6 +95,7 @@ export default function App() {
   const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
   const [detailedAgent, setDetailedAgent] = useState<Agent | null>(null);
+  const [agentFormSpriteVariant, setAgentFormSpriteVariant] = useState<number>(0);
 
   // Office Decoration State
   const [furniture, setFurniture] = useState<PlacedFurniture[]>([]);
@@ -165,21 +166,30 @@ export default function App() {
             if (idxB !== -1) return 1;
             return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
           });
-          const mapped: Agent[] = sorted.map((d: any, idx: number) => ({
-            id: d.id,
-            name: d.name,
-            role: d.role,
-            brief: d.brief || d.role,
-            system_instructions: d.system_instructions || '',
-            color: d.color || '#2563eb',
-            folder_path: d.folder_path || '',
-            conversation_id: d.conversation_id || null,
-            avatar: typeof d.avatar === 'string' ? JSON.parse(d.avatar) : d.avatar || {},
-            desk_x: idx < 4 ? 0 : 1,
-            desk_y: idx < 4 ? idx : idx - 4,
-            isBusy: false,
-            activeTaskId: null
-          }));
+          const mapped: Agent[] = sorted.map((d: any, idx: number) => {
+            const parsedAvatar = typeof d.avatar === 'string' ? JSON.parse(d.avatar) : d.avatar || {};
+            const sv = Number.isInteger(d.spriteVariant)
+              ? d.spriteVariant
+              : Number.isInteger(parsedAvatar?.spriteVariant)
+              ? parsedAvatar.spriteVariant
+              : idx % 8;
+            return {
+              id: d.id,
+              name: d.name,
+              role: d.role,
+              brief: d.brief || d.role,
+              system_instructions: d.system_instructions || '',
+              color: d.color || parsedAvatar.clothesColor || '#2563eb',
+              folder_path: d.folder_path || '',
+              conversation_id: d.conversation_id || null,
+              avatar: parsedAvatar,
+              spriteVariant: sv,
+              desk_x: idx < 4 ? 0 : 1,
+              desk_y: idx < 4 ? idx : idx - 4,
+              isBusy: false,
+              activeTaskId: null
+            };
+          });
           setAgents(mapped);
           return mapped;
         }
@@ -190,9 +200,23 @@ export default function App() {
       try {
         const res = await fetch('/api/agents');
         if (res.ok) {
-          const data: Agent[] = await res.json();
-          setAgents(data);
-          return data;
+          const rawAgents: any[] = await res.json();
+          const mapped: Agent[] = rawAgents.map((d: any, idx: number) => {
+            const parsedAvatar = typeof d.avatar === 'string' ? JSON.parse(d.avatar) : d.avatar || {};
+            const sv = Number.isInteger(d.spriteVariant)
+              ? d.spriteVariant
+              : Number.isInteger(parsedAvatar?.spriteVariant)
+              ? parsedAvatar.spriteVariant
+              : idx % 8;
+            return {
+              ...d,
+              color: d.color || parsedAvatar.clothesColor || '#2563eb',
+              avatar: parsedAvatar,
+              spriteVariant: sv
+            };
+          });
+          setAgents(mapped);
+          return mapped;
         }
       } catch (err) {
         console.error('Failed to load agents from local API:', err);
@@ -944,6 +968,11 @@ export default function App() {
   // Agent Form actions
   const handleOpenAgentForm = (ag?: Agent | null) => {
     setEditingAgent(ag || null);
+    if (ag) {
+      setAgentFormSpriteVariant(ag.avatar?.spriteVariant ?? ag.spriteVariant ?? 0);
+    } else {
+      setAgentFormSpriteVariant(agents.length % 8);
+    }
     setIsAgentModalOpen(true);
   };
 
@@ -961,6 +990,17 @@ export default function App() {
       return;
     }
 
+    const chosenVariant = agentFormSpriteVariant;
+    const chosenColor = color || COZY_VARIANTS[chosenVariant]?.color || '#2563eb';
+    const avatarObj: AgentAvatar = {
+      spriteVariant: chosenVariant,
+      clothesColor: chosenColor,
+      skinColor: '#edbb90',
+      hairStyle: 'short',
+      hairColor: '#343f42',
+      accessory: 'none'
+    };
+
     try {
       if (editingAgent) {
         if (isSupabaseActive && supabase) {
@@ -971,8 +1011,12 @@ export default function App() {
               role,
               system_instructions: brief,
               brief,
-              color,
-              folder_path: folder || editingAgent.folder_path
+              color: chosenColor,
+              folder_path: folder || editingAgent.folder_path,
+              avatar: {
+                ...editingAgent.avatar,
+                ...avatarObj
+              }
             })
             .eq('id', editingAgent.id);
           if (error) throw error;
@@ -988,8 +1032,10 @@ export default function App() {
               role,
               system_instructions: brief,
               brief,
-              color,
-              folder_path: folder || editingAgent.folder_path
+              color: chosenColor,
+              folder_path: folder || editingAgent.folder_path,
+              avatar: avatarObj,
+              spriteVariant: chosenVariant
             })
           });
           if (res.ok) {
@@ -1011,12 +1057,12 @@ export default function App() {
             role,
             system_instructions: brief,
             brief,
-            color,
+            color: chosenColor,
             folder_path: folder || '',
-            avatar: {}
+            avatar: avatarObj
           });
           if (error) throw error;
-          showToast('Đã thêm thành viên mới');
+          showToast('✓ Đã thêm thành viên mới thành công');
           setIsAgentModalOpen(false);
           await loadAgents();
         } else {
@@ -1028,12 +1074,14 @@ export default function App() {
               role,
               system_instructions: brief,
               brief,
-              color,
-              folder_path: folder
+              color: chosenColor,
+              folder_path: folder,
+              avatar: avatarObj,
+              spriteVariant: chosenVariant
             })
           });
           if (res.ok) {
-            showToast('Đã thêm thành viên mới');
+            showToast('✓ Đã thêm thành viên mới thành công');
             setIsAgentModalOpen(false);
             await loadAgents();
           } else {
@@ -2196,15 +2244,107 @@ export default function App() {
 
       {/* AGENT CREATE MODAL */}
       {isAgentModalOpen && !editingAgent && (
-        <dialog open id="modal">
+        <dialog open id="modal" style={{ maxWidth: '620px', width: '92vw' }}>
           <div className="modal-head">
             <h2 id="modalTitle">Thêm thành viên mới</h2>
             <button className="small" onClick={() => setIsAgentModalOpen(false)}>
               ✕
             </button>
           </div>
-          <div className="modal-body">
+          <div className="modal-body" style={{ maxHeight: '82vh', overflowY: 'auto' }}>
             <form onSubmit={handleSaveAgentForm} id="agentForm">
+              {/* CHIBI APPEARANCE SECTION */}
+              <div
+                className="agent-create-appearance-section"
+                style={{
+                  background: 'linear-gradient(135deg, #f0f7f9 0%, #e8f2f5 100%)',
+                  border: '1px solid #c9dee7',
+                  borderRadius: '12px',
+                  padding: '14px',
+                  marginBottom: '16px'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <label style={{ margin: 0, fontWeight: 700, fontSize: '13px', color: '#274b5a' }}>
+                    🎨 Ngoại hình nhân vật Chibi
+                  </label>
+                  <span style={{ fontSize: '11px', color: '#688c9c' }}>
+                    {COZY_VARIANTS[agentFormSpriteVariant]?.name}: {COZY_VARIANTS[agentFormSpriteVariant]?.desc}
+                  </span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: '12px', alignItems: 'center' }}>
+                  <div
+                    style={{
+                      background: 'radial-gradient(ellipse at center, #ffffff 40%, #e1edf2 100%)',
+                      border: '1.5px solid #bdd7e2',
+                      borderRadius: '10px',
+                      padding: '8px',
+                      textAlign: 'center',
+                      boxShadow: '0 2px 6px rgba(0,0,0,0.04)'
+                    }}
+                  >
+                    <AgentFormLivePreview variant={agentFormSpriteVariant} />
+                    <div style={{ fontSize: '10px', fontWeight: 700, color: '#385e6f', marginTop: '4px' }}>
+                      {COZY_VARIANTS[agentFormSpriteVariant]?.name}
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(4, 1fr)',
+                      gap: '6px'
+                    }}
+                  >
+                    {COZY_VARIANTS.map((v) => {
+                      const isSelected = agentFormSpriteVariant === v.id;
+                      return (
+                        <button
+                          type="button"
+                          key={v.id}
+                          onClick={() => {
+                            setAgentFormSpriteVariant(v.id);
+                            const colorInput = document.getElementById('aColor') as HTMLInputElement | null;
+                            if (colorInput && v.color) colorInput.value = v.color;
+                          }}
+                          style={{
+                            background: isSelected ? '#ffffff' : '#f8fbfd',
+                            border: isSelected ? '2px solid #2563eb' : '1px solid #d0e2e9',
+                            borderRadius: '8px',
+                            padding: '4px 2px',
+                            cursor: 'pointer',
+                            textAlign: 'center',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            boxShadow: isSelected ? '0 0 0 2px #93c5fd' : 'none',
+                            transition: 'all 0.15s ease'
+                          }}
+                          title={`${v.name} · ${v.desc}`}
+                        >
+                          <AgentFormThumbnail variant={v.id} />
+                          <span
+                            style={{
+                              fontSize: '10px',
+                              fontWeight: isSelected ? 700 : 500,
+                              color: isSelected ? '#1d4ed8' : '#4b6b7a',
+                              marginTop: '2px',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              maxWidth: '100%'
+                            }}
+                          >
+                            {v.name}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
               <label htmlFor="aName">Tên agent</label>
               <input
                 id="aName"
@@ -2254,10 +2394,13 @@ export default function App() {
                 type="color"
                 id="aColor"
                 name="aColor"
-                defaultValue="#2563eb"
+                defaultValue={COZY_VARIANTS[agentFormSpriteVariant]?.color || '#2563eb'}
               />
 
-              <div className="modal-actions">
+              <div className="modal-actions" style={{ marginTop: '16px' }}>
+                <button type="button" onClick={() => setIsAgentModalOpen(false)}>
+                  Hủy
+                </button>
                 <button type="submit" className="primary">
                   Lưu agent
                 </button>
@@ -2717,6 +2860,73 @@ const ChibiPortrait: React.FC<{ index?: number; agent: Agent }> = ({ agent }) =>
       style={{
         width: '100%',
         height: '100%',
+        objectFit: 'contain',
+        display: 'block'
+      }}
+    />
+  );
+};
+
+// Chibi live animated preview for Create Agent modal
+const AgentFormLivePreview: React.FC<{ variant: number }> = ({ variant }) => {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    let animId: number;
+    let stepCount = 0;
+    const render = () => {
+      if (canvasRef.current) {
+        stepCount++;
+        const step = Math.floor(stepCount / 18) % 2 === 1;
+        drawIllustratedSprite(canvasRef.current, {
+          variant,
+          direction: 'down',
+          frame: step
+        });
+      }
+      animId = requestAnimationFrame(render);
+    };
+    animId = requestAnimationFrame(render);
+    return () => cancelAnimationFrame(animId);
+  }, [variant]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={256}
+      height={256}
+      style={{
+        width: '84px',
+        height: '84px',
+        objectFit: 'contain',
+        display: 'block',
+        margin: '0 auto'
+      }}
+    />
+  );
+};
+
+// Outfit thumbnail for Create Agent modal
+const AgentFormThumbnail: React.FC<{ variant: number }> = ({ variant }) => {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    drawIllustratedSprite(canvasRef.current, {
+      variant,
+      direction: 'down',
+      frame: 0
+    });
+  }, [variant]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={256}
+      height={256}
+      style={{
+        width: '42px',
+        height: '42px',
         objectFit: 'contain',
         display: 'block'
       }}

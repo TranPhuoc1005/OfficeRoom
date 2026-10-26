@@ -24,7 +24,7 @@ const anWalkAtlas=new Image();anWalkAtlas.src='/assets/an-walk-full.png';let anW
 const seatedAtlas=new Image();seatedAtlas.src='/assets/characters-seated.png';let seatedReady=false,seatedMeta=null;seatedAtlas.onload=()=>seatedReady=true;fetch('/assets/seated-regions.json').then(r=>r.json()).then(m=>seatedMeta=m);
 let ready=false,walkReady=false,styleReady=false,spriteMeta=null,actors=new Map(),signature='',paused=matchMedia('(prefers-reduced-motion: reduce)').matches,last=0,selected=null,vw=0,vh=0;
 const variants=['Tóc bob · cardigan','Kính tròn · sơ mi','Tai nghe · hoodie','Tóc búi · áo tím','Tóc lavender · bomber','Tóc vàng · blazer','Đuôi ngựa · hoodie','Tóc bạc · tai nghe'];
-const variant=a=>Number.isInteger(a.spriteVariant)&&a.spriteVariant>=0&&a.spriteVariant<8?a.spriteVariant:Math.max(0,data.agents.findIndex(x=>x.id===a.id))%8;
+const variant=a=>{const v=Number.isInteger(a?.spriteVariant)?a.spriteVariant:Number.isInteger(a?.avatar?.spriteVariant)?a.avatar.spriteVariant:null;return v!==null&&v>=0&&v<8?v:Math.max(0,(data?.agents||[]).findIndex(x=>x.id===a?.id))%8;};
 fetch('/assets/sprite-regions.json').then(r=>r.json()).then(m=>{spriteMeta=m;portraits();document.querySelectorAll('[data-outfit]').forEach(b=>paint(b.querySelector('canvas'),{spriteVariant:Number(b.dataset.outfit)}))});styleAtlas.onload=()=>{styleReady=true;portraits()};
 function paint(canvas,a,direction='down',phase=0,moving=false,seated=false){
 const c=canvas.getContext('2d');c.clearRect(0,0,canvas.width,canvas.height);if(!spriteMeta)return;

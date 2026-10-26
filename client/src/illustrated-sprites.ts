@@ -1,5 +1,5 @@
 // Illustrated Character Atlas Renderer for Pixel Office Cozy Edition
-// Uses /assets/characters-atlas.png (4x4 grid of variants and walk/seated frames)
+// Uses sprite-regions.json and official character atlases (all 8 variants)
 
 export interface CharacterVariant {
   id: number;
@@ -10,46 +10,70 @@ export interface CharacterVariant {
 
 export const COZY_VARIANTS: CharacterVariant[] = [
   { id: 0, name: 'Mộc', desc: 'Tóc bob · Kẹp hoa · Cardigan sage', color: '#6b9272' },
-  { id: 1, name: 'Lam', desc: 'Kính tròn · Áo xanh · Quần tan', color: '#4f7047' },
+  { id: 1, name: 'Lam', desc: 'Kính tròn · Sơ mi xanh · Quần tan', color: '#4f7047' },
   { id: 2, name: 'Kai', desc: 'Tai nghe · Hoodie kem · Quần xanh', color: '#5b7947' },
-  { id: 3, name: 'An', desc: 'Tóc búi · Cardigan mauve · Túi nâu', color: '#88673d' }
+  { id: 3, name: 'An', desc: 'Tóc búi · Áo tím pastel · Túi nâu', color: '#88673d' },
+  { id: 4, name: 'Hạ', desc: 'Tóc lavender · Bomber cá tính', color: '#7c5ba6' },
+  { id: 5, name: 'Kim', desc: 'Tóc vàng · Blazer thanh lịch', color: '#b38b67' },
+  { id: 6, name: 'Linh', desc: 'Đuôi ngựa · Hoodie thể thao', color: '#3f72af' },
+  { id: 7, name: 'Bách', desc: 'Tóc bạc · Tai nghe chuyên gia', color: '#5c715e' }
 ];
 
-let atlasImage: HTMLImageElement | null = null;
-let atlasLoadingPromise: Promise<HTMLImageElement> | null = null;
+let atlasImg: HTMLImageElement | null = null;
+let styleAtlasImg: HTMLImageElement | null = null;
+let walkAtlasImg: HTMLImageElement | null = null;
+let spriteMeta: any = null;
+let loadingPromise: Promise<void> | null = null;
 
-export function loadAtlasImage(): Promise<HTMLImageElement> {
-  if (atlasImage && atlasImage.complete && atlasImage.naturalWidth > 0) {
-    return Promise.resolve(atlasImage);
-  }
-  if (atlasLoadingPromise) {
-    return atlasLoadingPromise;
-  }
-  atlasLoadingPromise = new Promise((resolve, reject) => {
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
     const img = new Image();
-    img.src = '/assets/characters-atlas.png';
-    img.onload = () => {
-      atlasImage = img;
-      resolve(img);
-    };
-    img.onerror = (err) => {
-      console.warn('Failed to load characters atlas image from /assets/characters-atlas.png', err);
-      // Fallback try relative path
+    img.src = src;
+    img.onload = () => resolve(img);
+    img.onerror = () => {
+      // Fallback without leading slash
       const img2 = new Image();
-      img2.src = 'assets/characters-atlas.png';
-      img2.onload = () => {
-        atlasImage = img2;
-        resolve(img2);
-      };
+      img2.src = src.startsWith('/') ? src.slice(1) : src;
+      img2.onload = () => resolve(img2);
       img2.onerror = reject;
     };
   });
-  return atlasLoadingPromise;
+}
+
+export function ensureLoaded(): Promise<void> {
+  if (spriteMeta && atlasImg && styleAtlasImg && walkAtlasImg) {
+    return Promise.resolve();
+  }
+  if (loadingPromise) return loadingPromise;
+
+  loadingPromise = Promise.all([
+    fetch('/assets/sprite-regions.json')
+      .then((r) => r.json())
+      .then((m) => {
+        spriteMeta = m;
+      })
+      .catch((err) => {
+        console.warn('Failed to load sprite-regions.json', err);
+      }),
+    loadImage('/assets/characters-atlas.png').then((img) => {
+      atlasImg = img;
+    }),
+    loadImage('/assets/character-styles.png').then((img) => {
+      styleAtlasImg = img;
+    }),
+    loadImage('/assets/walk-cycle.png')
+      .then((img) => {
+        walkAtlasImg = img;
+      })
+      .catch(() => {})
+  ]).then(() => {});
+
+  return loadingPromise;
 }
 
 // Pre-trigger loading
 if (typeof window !== 'undefined') {
-  loadAtlasImage().catch(() => {});
+  ensureLoaded().catch(() => {});
 }
 
 export function getAgentVariant(agent: any): number {
@@ -57,14 +81,14 @@ export function getAgentVariant(agent: any): number {
   if (
     typeof agent.avatar?.spriteVariant === 'number' &&
     agent.avatar.spriteVariant >= 0 &&
-    agent.avatar.spriteVariant <= 3
+    agent.avatar.spriteVariant < 8
   ) {
     return agent.avatar.spriteVariant;
   }
   if (
     typeof agent.spriteVariant === 'number' &&
     agent.spriteVariant >= 0 &&
-    agent.spriteVariant <= 3
+    agent.spriteVariant < 8
   ) {
     return agent.spriteVariant;
   }
@@ -76,7 +100,7 @@ export function getAgentVariant(agent: any): number {
     hash = (hash << 5) - hash + seed.charCodeAt(i);
     hash |= 0;
   }
-  return Math.abs(hash) % 4;
+  return Math.abs(hash) % 8;
 }
 
 export interface DrawSpriteOptions {
@@ -87,7 +111,7 @@ export interface DrawSpriteOptions {
 }
 
 /**
- * Draws an illustrated character from the atlas onto any HTMLCanvasElement.
+ * Draws an illustrated character using sprite-regions.json onto any HTMLCanvasElement.
  */
 export function drawIllustratedSprite(
   canvas: HTMLCanvasElement,
@@ -97,9 +121,8 @@ export function drawIllustratedSprite(
   if (!ctx) return;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  if (!atlasImage || !atlasImage.complete || atlasImage.naturalWidth === 0) {
-    // If not yet loaded, wait and draw once ready
-    loadAtlasImage()
+  if (!spriteMeta || !atlasImg || !styleAtlasImg) {
+    ensureLoaded()
       .then(() => drawIllustratedSprite(canvas, options))
       .catch(() => {});
     return;
@@ -112,25 +135,45 @@ export function drawIllustratedSprite(
     isWorking = false
   } = options;
 
-  const row = Math.max(0, Math.min(3, Math.trunc(variant)));
+  const v = Math.max(0, Math.min(7, Math.floor(variant)));
+  const moving = typeof frame === 'boolean' ? frame : frame > 0;
+  const phase = typeof frame === 'number' ? frame : (moving ? 1 : 0);
+  const side = direction === 'left' || direction === 'right';
 
-  // Frame columns according to atlas.json:
-  // 0: front (down)
-  // 1: back (up)
-  // 2: side frame A
-  // 3: side frame B
-  let col = 0;
-  if (isWorking || direction === 'up') {
-    col = 1;
-  } else if (direction === 'left' || direction === 'right') {
-    const isWalkStep = typeof frame === 'boolean' ? frame : frame % 2 === 1;
-    col = isWalkStep ? 2 : 3;
+  let img: HTMLImageElement | null = null;
+  let rect: [number, number, number, number] | null = null;
+
+  if (v < 4) {
+    if (moving && walkAtlasImg && v < 3 && spriteMeta.walk) {
+      img = walkAtlasImg;
+      rect = spriteMeta.walk[v][Math.floor(phase) % 8];
+    } else {
+      img = atlasImg;
+      const stepIdx = moving
+        ? 2 + (Math.floor(phase / 2) % 2)
+        : direction === 'up' || isWorking
+        ? 1
+        : side
+        ? 2
+        : 0;
+      rect = spriteMeta.idle[v][stepIdx];
+    }
   } else {
-    col = 0;
+    img = styleAtlasImg;
+    const stepIdx = moving
+      ? 2 + (Math.floor(phase / 2) % 2)
+      : direction === 'up' || isWorking
+      ? 1
+      : 0;
+    rect = spriteMeta.styles[v - 4][stepIdx];
   }
 
-  const cellW = atlasImage.width / 4;
-  const cellH = atlasImage.height / 4;
+  if (!rect || !img) return;
+
+  const [x, y, w, h] = rect;
+  const scale = Math.min((canvas.width * 0.86) / w, (canvas.height * 0.94) / h);
+  const dw = w * scale;
+  const dh = h * scale;
 
   ctx.save();
   ctx.imageSmoothingEnabled = true;
@@ -141,17 +184,7 @@ export function drawIllustratedSprite(
     ctx.scale(-1, 1);
   }
 
-  ctx.drawImage(
-    atlasImage,
-    col * cellW,
-    row * cellH,
-    cellW,
-    cellH,
-    0,
-    0,
-    canvas.width,
-    canvas.height
-  );
+  ctx.drawImage(img, x, y, w, h, (canvas.width - dw) / 2, canvas.height - dh, dw, dh);
   ctx.restore();
 }
 

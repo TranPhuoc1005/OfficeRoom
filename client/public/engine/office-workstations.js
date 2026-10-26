@@ -1,7 +1,7 @@
 /* Pure workstation model: stable object/agent IDs, rotation and geometry. */
 (function(root){'use strict';
 const DESKS=['desk','whitedesk','longdesk'],CHAIRS=['chair','whitechair'],SCREENS=['monitor','dualmonitor'];
-const isDesk=o=>DESKS.includes(o.type),isChair=o=>CHAIRS.includes(o.type),isScreen=o=>SCREENS.includes(o.type),ownable=o=>isDesk(o)||isChair(o)||isScreen(o);
+const isDesk=o=>DESKS.includes(o.type),isChair=o=>CHAIRS.includes(o.type),isScreen=o=>SCREENS.includes(o.type),ownable=o=>Boolean(o&&o.type!=='roomfloor');
 const rotation=o=>((Number(o.rotation)||0)%360+360)%360;
 function normalize(layout){const next=JSON.parse(JSON.stringify(layout));for(const o of next.objects){o.rotation??=0;o.ownerId??=null;o.deskId??=null}return next}
 function assign(layout,id,ownerId){const o=layout.objects.find(o=>o.id===id);if(!o||!ownable(o))return;o.ownerId=ownerId||null;
@@ -11,8 +11,7 @@ function assign(layout,id,ownerId){const o=layout.objects.find(o=>o.id===id);if(
   const d=layout.objects.find(x=>x.id===o.deskId&&isDesk(x));
   if(d){
    if(!d.ownerId&&o.ownerId)d.ownerId=o.ownerId;
-   else if(d.ownerId&&o.ownerId&&d.ownerId!==o.ownerId){o.deskId=null;o.mount=null;o.follow=null}
-   else if(!o.ownerId&&d.ownerId){o.deskId=null;o.mount=null;o.follow=null}
+   else if(d.ownerId&&o.ownerId&&d.ownerId!==o.ownerId)d.ownerId=o.ownerId;
   }
  }
  if(o.ownerId){

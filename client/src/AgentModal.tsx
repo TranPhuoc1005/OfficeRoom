@@ -303,7 +303,8 @@ export const AgentModal: React.FC<AgentModalProps> = ({
                 onSave={async (newAvatar) => {
                   await onUpdateAgent({
                     avatar: newAvatar,
-                    color: newAvatar.clothesColor
+                    color: newAvatar.clothesColor,
+                    spriteVariant: newAvatar.spriteVariant
                   });
                 }}
               />

@@ -1,13 +1,22 @@
 /* Pure workstation model: stable object/agent IDs, rotation and geometry. */
 (function(root){'use strict';
 const DESKS=['desk','whitedesk','longdesk'],CHAIRS=['chair','whitechair'],SCREENS=['monitor','dualmonitor'];
-const isDesk=o=>DESKS.includes(o.type),isChair=o=>CHAIRS.includes(o.type),isScreen=o=>SCREENS.includes(o.type),ownable=o=>isDesk(o)||isChair(o)||isScreen(o);
+const isDesk=o=>DESKS.includes(o.type),isChair=o=>CHAIRS.includes(o.type),isScreen=o=>SCREENS.includes(o.type),ownable=o=>Boolean(o&&o.type!=='roomfloor');
 const rotation=o=>((Number(o.rotation)||0)%360+360)%360;
 function normalize(layout){const next=JSON.parse(JSON.stringify(layout));for(const o of next.objects){o.rotation??=0;o.ownerId??=null;o.deskId??=null}return next}
-function assign(layout,id,ownerId){const o=layout.objects.find(o=>o.id===id);if(!o||!ownable(o))return;o.ownerId=ownerId||null;o.deskId=null;
- for(const item of layout.objects){if(item.deskId===o.id&&item.ownerId!==o.ownerId)item.deskId=null}
- // Only link pieces that already belong to the same agent. Never take unowned pieces.
- for(const item of layout.objects){if(!(isChair(item)||isScreen(item))||!item.ownerId||item.deskId)continue;const desks=layout.objects.filter(d=>isDesk(d)&&d.ownerId===item.ownerId);desks.sort((a,b)=>(a.x-item.x)**2+(a.y-item.y)**2-((b.x-item.x)**2+(b.y-item.y)**2));if(desks[0])item.deskId=desks[0].id}
+function assign(layout,id,ownerId){const o=layout.objects.find(o=>o.id===id);if(!o||!ownable(o))return;o.ownerId=ownerId||null;
+ if(isDesk(o)){
+  for(const item of layout.objects){if(item.deskId===o.id)item.ownerId=o.ownerId}
+ }else if(o.deskId){
+  const d=layout.objects.find(x=>x.id===o.deskId&&isDesk(x));
+  if(d){
+   if(!d.ownerId&&o.ownerId)d.ownerId=o.ownerId;
+   else if(d.ownerId&&o.ownerId&&d.ownerId!==o.ownerId)d.ownerId=o.ownerId;
+  }
+ }
+ if(o.ownerId){
+  for(const item of layout.objects){if(!(isChair(item)||isScreen(item))||item.ownerId!==o.ownerId||item.deskId)continue;const desks=layout.objects.filter(d=>isDesk(d)&&d.ownerId===item.ownerId);desks.sort((a,b)=>(a.x-item.x)**2+(a.y-item.y)**2-((b.x-item.x)**2+(b.y-item.y)**2));if(desks[0])item.deskId=desks[0].id}
+ }
 }
 function rotate(layout,id,angle,{width=1000,height=800,group=true,sizeOf=null}={}){if(![0,90,180,270].includes(angle))throw Error('Góc xoay không hợp lệ.');const result=normalize(layout),o=result.objects.find(o=>o.id===id);if(!o)return result;const delta=angle-rotation(o),rad=delta*Math.PI/180,cos=Math.round(Math.cos(rad)),sin=Math.round(Math.sin(rad));
  const members=group&&isDesk(o)?result.objects.filter(x=>x.deskId===o.id&&x.ownerId===o.ownerId):[];

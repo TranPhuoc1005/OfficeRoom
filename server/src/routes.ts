@@ -25,6 +25,11 @@ apiRouter.get('/agents', (req: Request, res: Response) => {
     }
     const color = agent.color || parsedAvatar.clothesColor || DEFAULT_PALETTE[i % DEFAULT_PALETTE.length];
     const brief = agent.brief || agent.system_instructions || '';
+    const spriteVariant = Number.isInteger(parsedAvatar.spriteVariant)
+      ? parsedAvatar.spriteVariant
+      : Number.isInteger((agent as any).spriteVariant)
+      ? (agent as any).spriteVariant
+      : i % 8;
 
     return {
       ...agent,
@@ -32,6 +37,7 @@ apiRouter.get('/agents', (req: Request, res: Response) => {
       brief,
       avatar: parsedAvatar,
       appearance: parsedAvatar,
+      spriteVariant,
       isBusy: isAgentBusy(agent.id),
       activeTaskId: getActiveTaskId(agent.id) || null
     };
@@ -42,7 +48,7 @@ apiRouter.get('/agents', (req: Request, res: Response) => {
 
 // 2. Create new agent
 apiRouter.post('/agents', (req: Request, res: Response) => {
-  const { name, role, brief, system_instructions, folder_path, color } = req.body;
+  const { name, role, brief, system_instructions, folder_path, color, avatar, spriteVariant } = req.body;
 
   if (!name || !role) {
     res.status(400).json({ error: 'Tên và vai trò của Agent không được để trống.' });
@@ -65,16 +71,20 @@ apiRouter.post('/agents', (req: Request, res: Response) => {
   }
 
   const agentsCount = (db.prepare('SELECT COUNT(*) as c FROM agents').get() as { c: number }).c;
-  const agentColor = color || DEFAULT_PALETTE[agentsCount % DEFAULT_PALETTE.length];
+  const agentColor = color || (avatar && avatar.clothesColor) || DEFAULT_PALETTE[agentsCount % DEFAULT_PALETTE.length];
   const now = Date.now();
 
-  const avatarObj = {
+  const avatarObj: any = {
     skinColor: '#ffe0bd',
     hairStyle: 'short',
     hairColor: '#4a2c11',
     clothesColor: agentColor,
-    accessory: 'none'
+    accessory: 'none',
+    ...(typeof avatar === 'object' && avatar ? avatar : {})
   };
+  if (spriteVariant !== undefined) {
+    avatarObj.spriteVariant = Number(spriteVariant);
+  }
 
   db.prepare(`
     INSERT INTO agents (id, name, role, system_instructions, folder_path, conversation_id, avatar, desk_x, desk_y, created_at, updated_at, color, brief)
@@ -140,7 +150,7 @@ apiRouter.get('/agents/:id', (req: Request, res: Response) => {
 // 4. Update agent settings (folder, role, instructions, avatar, color)
 apiRouter.put('/agents/:id', (req: Request, res: Response) => {
   const agentId = String(req.params.id);
-  const { name, role, system_instructions, brief, folder_path, avatar, appearance, color } = req.body;
+  const { name, role, system_instructions, brief, folder_path, avatar, appearance, color, spriteVariant } = req.body;
 
   const agent = db.prepare('SELECT * FROM agents WHERE id = ?').get(agentId) as unknown as any;
   if (!agent) {
@@ -165,7 +175,16 @@ apiRouter.put('/agents/:id', (req: Request, res: Response) => {
   let newAvatarStr = agent.avatar;
   const incomingAvatar = avatar || appearance;
   if (incomingAvatar) {
+    if (spriteVariant !== undefined) incomingAvatar.spriteVariant = Number(spriteVariant);
     newAvatarStr = JSON.stringify(incomingAvatar);
+  } else if (spriteVariant !== undefined) {
+    try {
+      const parsed = JSON.parse(agent.avatar || '{}');
+      parsed.spriteVariant = Number(spriteVariant);
+      newAvatarStr = JSON.stringify(parsed);
+    } catch {
+      newAvatarStr = JSON.stringify({ spriteVariant: Number(spriteVariant) });
+    }
   } else if (newColor) {
     try {
       const parsed = JSON.parse(agent.avatar || '{}');

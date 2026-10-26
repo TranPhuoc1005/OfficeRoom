@@ -41,6 +41,7 @@ export const AgentEditModal: React.FC<AgentEditModalProps> = ({
       system_instructions: instructions.trim(),
       folder_path: folderPath.trim(),
       color: avatar.clothesColor || color,
+      spriteVariant: avatar.spriteVariant,
       avatar: {
         ...avatar,
         clothesColor: avatar.clothesColor || color
@@ -157,7 +158,8 @@ export const AgentEditModal: React.FC<AgentEditModalProps> = ({
                 setColor(newAvatar.clothesColor || color);
                 await onSave({
                   avatar: newAvatar,
-                  color: newAvatar.clothesColor || color
+                  color: newAvatar.clothesColor || color,
+                  spriteVariant: newAvatar.spriteVariant
                 });
               }}
             />

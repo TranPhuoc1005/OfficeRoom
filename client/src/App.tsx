@@ -883,12 +883,16 @@ export default function App() {
           }
 
           const targetRunner = runners.find((r) => r.isOnline) || runners[0];
+          const chosenFolderPath = targetAgent?.folder_path && targetAgent.folder_path.trim().length > 0
+            ? targetAgent.folder_path.trim()
+            : projects.length > 0 ? projects[0].path : 'C:\\Users\\Admin\\Desktop\\PhuocTH\\Tasks\\OfficeRoom';
+
           const { error } = await supabase.from('tasks').insert({
             id: newTaskId,
             office_id: officeId,
             agent_id: targetAgentId,
             runner_id: targetRunner?.id || null,
-            folder_path: targetAgent?.folder_path || '',
+            folder_path: chosenFolderPath,
             conversation_id: targetAgent?.conversation_id || null,
             title,
             prompt: detail,
@@ -906,7 +910,7 @@ export default function App() {
             title,
             priority,
             prompt: detail,
-            folder_path: targetAgent?.folder_path || '',
+            folder_path: chosenFolderPath,
             conversation_id: targetAgent?.conversation_id || null,
             status: 'queued',
             current_activity: 'Đang xếp hàng chờ Runner...',

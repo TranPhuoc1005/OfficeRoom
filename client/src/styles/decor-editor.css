@@ -45,3 +45,22 @@
 @media(prefers-reduced-motion:reduce){.decor-object{transition:none}}
 
 .decor-panel header{margin:0;justify-content:flex-start}.decor-inspector label{margin:0 0 8px}.decor-panel.collapsed header{border-bottom:0}.decor-content{max-height:190px}.decor-catalog{align-items:center}#decorEmpty{align-self:center}@media(max-width:800px){.decor-content{max-height:260px}}
+
+/* Animated Active Monitor Screen Glow */
+.decor-object.screen-working {
+  filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.85)) drop-shadow(0 0 16px rgba(34, 211, 238, 0.55)) !important;
+  animation: screen-cyber-glow 2s ease-in-out infinite alternate;
+}
+
+.decor-object.screen-working-glow {
+  filter: drop-shadow(0 0 6px rgba(74, 222, 128, 0.75)) !important;
+}
+
+@keyframes screen-cyber-glow {
+  0% {
+    filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.75)) drop-shadow(0 0 12px rgba(34, 211, 238, 0.45));
+  }
+  100% {
+    filter: drop-shadow(0 0 12px rgba(56, 189, 248, 0.95)) drop-shadow(0 0 22px rgba(74, 222, 128, 0.65));
+  }
+}

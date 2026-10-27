@@ -78,9 +78,34 @@ export async function executeTaskWithAgy(
     throw new Error('Runner đang bận thực thi một tác vụ khác.');
   }
 
-  // Verify folderPath exists on Windows machine
-  if (!fs.existsSync(folderPath)) {
-    const errorMsg = `Thư mục dự án không tồn tại trên máy runner: ${folderPath}`;
+  // Verify folderPath exists on Windows machine, attempt smart remapping if needed
+  let resolvedFolder = folderPath ? folderPath.trim() : '';
+  if (!resolvedFolder || !fs.existsSync(resolvedFolder)) {
+    const currentProfile = process.env.USERPROFILE || 'C:\\Users\\Admin';
+    if (resolvedFolder) {
+      // 1. Try replacing old user directory (e.g. C:\Users\tranp -> C:\Users\Admin)
+      const remapped = resolvedFolder.replace(/^C:\\Users\\[^\\]+/i, currentProfile);
+      if (fs.existsSync(remapped)) {
+        console.log(`[Runner] 🔄 Tự động chuyển đường dẫn từ ${resolvedFolder} sang ${remapped}`);
+        resolvedFolder = remapped;
+      }
+    }
+
+    // 2. Fallback to registered projects
+    if (!resolvedFolder || !fs.existsSync(resolvedFolder)) {
+      try {
+        const { loadLocalProjects } = require('./projects');
+        const projects = loadLocalProjects();
+        if (projects.length > 0 && fs.existsSync(projects[0].path)) {
+          console.warn(`[Runner] ⚠️ Đường dẫn "${folderPath}" không tồn tại. Tự động dùng thư mục dự án mặc định: ${projects[0].path}`);
+          resolvedFolder = projects[0].path;
+        }
+      } catch {}
+    }
+  }
+
+  if (!resolvedFolder || !fs.existsSync(resolvedFolder)) {
+    const errorMsg = `Thư mục dự án không tồn tại trên máy runner: ${folderPath || '(chưa chọn)'}`;
     console.error(`[Runner] ${errorMsg}`);
     await onProgress({
       eventType: 'error',
@@ -89,6 +114,7 @@ export async function executeTaskWithAgy(
     });
     return;
   }
+  folderPath = resolvedFolder;
 
   const binary = findAgyBinary();
   const args: string[] = ['--dangerously-skip-permissions'];

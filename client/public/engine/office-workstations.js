@@ -23,15 +23,42 @@ function rotate(layout,id,angle,{width=1000,height=800,group=true,sizeOf=null}={
  for(const m of members){const dx=(m.x-o.x)*width,dy=(m.y-o.y)*height;m.x=o.x+(dx*cos+dy*sin)/width;m.y=o.y+(-dx*sin+dy*cos)/height;m.rotation=(rotation(m)+delta+360)%360;if(m.x<0||m.x>1||m.y<.32||m.y>1)throw Error('Bộ bàn ghế sẽ ra ngoài phòng. Dời bàn vào giữa trước khi xoay.')}o.rotation=angle;if(sizeOf){for(const t of [o,...members]){const r=footprint(t,sizeOf(t),width,height);if(r.x<2||r.x+r.w>width-2||r.y<height*.32||r.y+r.h>height-3)throw Error('Bộ bàn ghế sẽ ra ngoài phòng. Dời bàn vào trong trước khi xoay.')}}return result;
 }
 function footprint(o,size,width,height){const g=Math.min(width/48,height/30);if(['partition','glasswall','door'].includes(o.type)&&o.length!==undefined){let w=o.length*g*(o.scale??1),h=g*.35*(o.scale??1);if(rotation(o)%180)[w,h]=[h,w];return{x:o.x*width-w/2,y:o.y*height-h/2,w,h}}if(o.type==='roomfloor')return{x:o.x*width-o.roomWidth*g/2,y:o.y*height-o.roomDepth*g/2,w:o.roomWidth*g,h:o.roomDepth*g};if(['plant','lamp','whiteplant','whitelamp'].includes(o.type)){const d=size*(['lamp','whitelamp'].includes(o.type)?.18:.35)+12;return{x:o.x*width-d/2,y:o.y*height-d/2,w:d,h:d}}let w=size*(o.type==='partition'||o.type==='glasswall'?.88:o.type==='door'?.68:isDesk(o)?.80:isChair(o)?.55:.62),h=size*(o.type==='partition'||o.type==='glasswall'||o.type==='door'?.10:isDesk(o)?.22:isChair(o)?.35:.23);if(rotation(o)%180)[w,h]=[h,w];return{x:o.x*width-w/2-6,y:o.y*height-h/2-6,w:w+12,h:h+12}}
-function resolve(layout,agentId,{width,height,sizeOf}){const fail=reason=>({ok:false,reason});const chairs=layout.objects.filter(o=>isChair(o)&&o.ownerId===agentId);if(!chairs.length)return fail('Chưa được gán ghế');const complete=[];let reason='Ghế chưa liên kết với bàn cùng chủ';
- for(const chair of chairs){const desk=layout.objects.find(o=>o.id===chair.deskId&&isDesk(o)&&o.ownerId===agentId);if(!desk)continue;
- const monitors=layout.objects.filter(o=>isScreen(o)&&o.ownerId===agentId&&o.deskId===desk.id);if(!monitors.length&&desk.type!=='desk'){reason='Bàn chưa có màn hình cùng chủ';continue}
- const angle=rotation(desk),rad=angle*Math.PI/180,dx=(chair.x-desk.x)*width,dy=(chair.y-desk.y)*height,forward=dx*Math.sin(rad)+dy*Math.cos(rad),distance=Math.hypot(dx,dy);
- if(rotation(chair)!==angle||monitors.some(m=>rotation(m)!==angle)){reason='Bàn, ghế và màn hình chưa cùng hướng';continue}
- if(distance>Math.max(72,sizeOf(desk)*1.1)||forward<8){reason='Ghế quá xa hoặc đặt sai phía bàn';continue}
- if(monitors.some(m=>Math.hypot((m.x-desk.x)*width,(m.y-desk.y)*height)>Math.max(80,sizeOf(desk)*.9))){reason='Màn hình quá xa bàn';continue}
- complete.push({ok:true,desk,chair,monitors,rotation:angle,direction:['up','left','down','right'][angle/90],seat:{x:chair.x*width,y:chair.y*height},approach:{x:chair.x*width+Math.sin(rad)*sizeOf(chair)*.5,y:chair.y*height+Math.cos(rad)*sizeOf(chair)*.5}})
- }return complete[0]||fail(reason);
+function resolve(layout,agentId,{width,height,sizeOf}){
+ const fail=reason=>({ok:false,reason});
+ let chairs=layout.objects.filter(o=>isChair(o)&&o.ownerId===agentId);
+ if(!chairs.length){
+  const allAgents = (typeof window!=='undefined'&&window.data?.agents)||[];
+  const agentIdx = allAgents.findIndex(a=>a.id===agentId);
+  const unownedChairs = layout.objects.filter(o=>isChair(o)&&!o.ownerId);
+  if(unownedChairs.length>0){
+   chairs=[unownedChairs[(agentIdx>=0?agentIdx:0)%unownedChairs.length]];
+  }else{
+   const allChairs=layout.objects.filter(isChair);
+   if(allChairs.length>0){
+    chairs=[allChairs[(agentIdx>=0?agentIdx:0)%allChairs.length]];
+   }
+  }
+ }
+ if(!chairs.length)return fail('Chưa có ghế trong văn phòng');
+ const complete=[];let reason='Ghế chưa liên kết với bàn';
+ for(const chair of chairs){
+  let desk=layout.objects.find(o=>o.id===chair.deskId&&isDesk(o));
+  if(!desk){
+   const desks=layout.objects.filter(isDesk);
+   desks.sort((a,b)=>Math.hypot((a.x-chair.x)*width,(a.y-chair.y)*height)-Math.hypot((b.x-chair.x)*width,(b.y-chair.y)*height));
+   desk=desks[0];
+  }
+  if(!desk)continue;
+  let monitors=layout.objects.filter(o=>isScreen(o)&&(o.deskId===desk.id||o.ownerId===agentId));
+  if(!monitors.length){
+   const allScreens=layout.objects.filter(isScreen);
+   allScreens.sort((a,b)=>Math.hypot((a.x-desk.x)*width,(a.y-desk.y)*height)-Math.hypot((b.x-desk.x)*width,(b.y-desk.y)*height));
+   if(allScreens[0])monitors=[allScreens[0]];
+  }
+  const angle=rotation(desk),rad=angle*Math.PI/180;
+  complete.push({ok:true,desk,chair,monitors,rotation:angle,direction:['up','left','down','right'][angle/90],seat:{x:chair.x*width,y:chair.y*height},approach:{x:chair.x*width+Math.sin(rad)*(sizeOf?sizeOf(chair)*.5:20),y:chair.y*height+Math.cos(rad)*(sizeOf?sizeOf(chair)*.5:20)}});
+ }
+ return complete[0]||fail(reason);
 }
 const api={isDesk,isChair,isScreen,ownable,rotation,normalize,assign,rotate,footprint,resolve};root.OfficeWorkstations=api;if(typeof module!=='undefined')module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);

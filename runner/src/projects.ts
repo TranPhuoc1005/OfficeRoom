@@ -22,18 +22,23 @@ export function loadLocalProjects(filePath: string = DEFAULT_PROJECT_FILE): Proj
   }
 
   // Initialize with sensible defaults for this Windows workstation
+  const userProfile = process.env.USERPROFILE || 'C:\\Users\\Admin';
   const defaults: ProjectEntry[] = [
     {
       name: 'AgentOffice',
       path: path.resolve(__dirname, '../../')
     },
     {
-      name: 'wegolden',
-      path: 'C:\\Users\\tranp\\OneDrive\\Desktop\\TranPhuoc\\Work\\WeMastertrade\\WeGolden\\wegolden'
+      name: 'flatsome',
+      path: path.join(userProfile, 'Desktop\\PhuocTH\\Work\\WeMasterTrade\\wordpress-global\\wp-content\\themes\\flatsome')
     },
     {
-      name: 'flatsome',
-      path: 'C:\\Users\\tranp\\OneDrive\\Desktop\\TranPhuoc\\Work\\WeMastertrade\\WeMastertrade\\flatsome'
+      name: 'wordpress-global',
+      path: path.join(userProfile, 'Desktop\\PhuocTH\\Work\\WeMasterTrade\\wordpress-global')
+    },
+    {
+      name: 'wegolden',
+      path: path.join(userProfile, 'Desktop\\PhuocTH\\Work\\WeGolden\\wegolden')
     },
     {
       name: 'test_workspace_alpha',
@@ -47,8 +52,9 @@ export function loadLocalProjects(filePath: string = DEFAULT_PROJECT_FILE): Proj
 
   // Filter only existing paths
   const existing = defaults.filter((d) => fs.existsSync(d.path));
-  saveLocalProjects(existing.length > 0 ? existing : defaults, filePath);
-  return existing.length > 0 ? existing : defaults;
+  const result = existing.length > 0 ? existing : defaults;
+  saveLocalProjects(result, filePath);
+  return result;
 }
 
 export function saveLocalProjects(projects: ProjectEntry[], filePath: string = DEFAULT_PROJECT_FILE): void {

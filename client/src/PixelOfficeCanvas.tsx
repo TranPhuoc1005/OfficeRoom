@@ -55,16 +55,17 @@ export const PixelOfficeCanvas: React.FC<PixelOfficeCanvasProps> = ({
 
     const mappedTasks = tasks.map((t) => {
       let status: 'todo' | 'doing' | 'review' | 'done' = 'todo';
-      if (t.status === 'RUNNING' || t.status === 'doing') {
+      const s = String(t.status || '').toLowerCase();
+      if (s === 'running' || s === 'doing' || s === 'queued') {
         status = 'doing';
       } else if (
-        (t.status === 'SUCCESS' && t.review_status !== 'approved') ||
-        t.status === 'review'
+        (s === 'success' && t.review_status !== 'approved') ||
+        s === 'review'
       ) {
         status = 'review';
       } else if (
-        (t.status === 'SUCCESS' && t.review_status === 'approved') ||
-        t.status === 'done'
+        (s === 'success' && t.review_status === 'approved') ||
+        s === 'done'
       ) {
         status = 'done';
       }

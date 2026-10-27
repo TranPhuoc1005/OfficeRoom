@@ -89,6 +89,7 @@ function idle(a,layout,nav,dt){OfficeLife.decay(a.life,dt);const cur=a.life.curr
 resize();update();document.body.classList.remove('full-intro');if(new URLSearchParams(location.search).get('view')==='office'&&entrance){entrance.classList.add('hidden');}
 function workIssue(a,reason){if(a.workIssue!==reason)toast(a.agent.name+': '+reason);a.workIssue=reason}
 function tick(now){if(!room.isConnected)return;const dt=Math.min((now-last)/1000||0,.05);last=now;const layout=window.officeLayout;
+try{layout?.animateScreens?.(now)}catch(e){}
 const isIntro=Boolean(entrance&&document.body.classList.contains('full-intro'));
 if(!paused&&!document.hidden&&!isIntro&&!layout?.editing)for(const a of actors.values()){
 let moving=false;const nav=layout?.navigation(a.agent.id);if(!nav)continue;const printJob=window.officeReports?.claim(a.agent.id);a.printState=printJob?'walking':null;if(printJob&&a.printJobId!==printJob.id){a.printJobId=printJob.id;a.seated=false;a.workIssue=null;a.path=[];a.wait=0;a.goal=null}if(!printJob)a.printJobId=null;if((printJob||a.status==='doing')&&a.life.current)cancelIdle(a);

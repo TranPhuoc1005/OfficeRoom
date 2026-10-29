@@ -8,7 +8,7 @@
 .decor-actions{grid-column:1/3;align-items:center;flex-wrap:nowrap;margin:0;gap:4px}
 .decor-inspector #stationHint{display:block;grid-column:3;font-size:7px;line-height:10px;max-height:22px;color:#7e9ba9}
 .decor-object-tag{max-width:185px;overflow:hidden;text-overflow:ellipsis}
-.cozy-actor.seated:before{opacity:.35}.cozy-actor.seated .actor-state{background:#e5f6f4;color:#3d8990;border-color:#a9d0d1}
+.cozy-actor.seated:before{opacity:.35}.cozy-actor.seated-facing-up .actor-name{top:calc(100% + 14px)}.cozy-actor.seated .actor-state{background:#e5f6f4;color:#3d8990;border-color:#a9d0d1}
 .cozy-actor.seated .actor-state:after{content:'';position:absolute;bottom:-3px;width:4px;height:2px;background:#71aeb6;animation:typingPulse .8s steps(2,end) infinite}
 @keyframes typingPulse{50%{transform:translateX(4px);opacity:.4}}
 @media(prefers-reduced-motion:reduce){.cozy-actor.seated .actor-state:after{animation:none}}

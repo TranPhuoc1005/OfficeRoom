@@ -15,6 +15,7 @@ import type { RunnerInfo, ProjectInfo } from './supabase';
 import { ReceptionScreen } from './ReceptionScreen';
 import { RunnerModal } from './RunnerModal';
 import { ProjectSelectModal } from './ProjectSelectModal';
+import { MarkdownView } from './MarkdownView';
 import { drawIllustratedPortrait, getAgentVariant, COZY_VARIANTS, drawIllustratedSprite } from './illustrated-sprites';
 import './App.css';
 import './styles/game-layout.css';
@@ -570,6 +571,16 @@ export default function App() {
               });
               playNotificationSound('success');
               showToast(`✓ ${agName} đã hoàn tất: "${tTitle}"!`);
+
+              // Sync immediately so agent walks to printer right away without F5
+              setTimeout(() => {
+                if (typeof (window as any).officeReports?.sync === 'function') {
+                  (window as any).officeReports.sync();
+                }
+                if (typeof (window as any).updatePixelOffice === 'function') {
+                  (window as any).updatePixelOffice();
+                }
+              }, 50);
             } else if (updated.status === 'interrupted' || updated.status === 'error') {
               setActiveTasks((prev) => {
                 const next = new Map(prev);
@@ -2669,10 +2680,31 @@ export default function App() {
 
             {/* Result display */}
             {detailTask.status !== 'RUNNING' && detailTask.status !== 'doing' && detailTask.status !== 'running' && detailTask.status !== 'queued' && (
-              <div style={{ marginTop: '14px' }}>
-                <label>Kết quả từ Agent</label>
-                <div className="result">
-                  {detailTask.response_text || 'Chưa có kết quả phản hồi từ tiến trình.'}
+              <div style={{ marginTop: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <label style={{ margin: 0, fontWeight: 700, fontSize: '13px', color: '#1e293b' }}>📄 Báo cáo kết quả từ Agent</label>
+                  {detailTask.response_text && (
+                    <button
+                      type="button"
+                      className="small"
+                      onClick={async () => {
+                        await navigator.clipboard.writeText(detailTask.response_text);
+                        showToast('Đã sao chép toàn bộ báo cáo!');
+                      }}
+                      title="Sao chép toàn bộ nội dung báo cáo"
+                    >
+                      📋 Sao chép
+                    </button>
+                  )}
+                </div>
+                <div className="report-markdown-card">
+                  {detailTask.response_text ? (
+                    <MarkdownView content={detailTask.response_text} />
+                  ) : (
+                    <div style={{ color: '#94a3b8', fontStyle: 'italic', padding: '12px' }}>
+                      Chưa có kết quả phản hồi từ tiến trình.
+                    </div>
+                  )}
                 </div>
               </div>
             )}

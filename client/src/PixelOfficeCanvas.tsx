@@ -92,6 +92,9 @@ export const PixelOfficeCanvas: React.FC<PixelOfficeCanvasProps> = ({
     if (typeof (window as any).updatePixelOffice === 'function') {
       (window as any).updatePixelOffice();
     }
+    if (typeof (window as any).officeReports?.sync === 'function') {
+      (window as any).officeReports.sync();
+    }
   }, [agents, tasks]);
 
   // Initialize modular Cozy Office & Decor Editor engines on mount

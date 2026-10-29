@@ -882,7 +882,6 @@ export default function App() {
             showToast('Đã gửi tác vụ lên hệ thống! ⚡');
           }
 
-          const targetRunner = runners.find((r) => r.isOnline) || runners[0];
           const chosenFolderPath = targetAgent?.folder_path && targetAgent.folder_path.trim().length > 0
             ? targetAgent.folder_path.trim()
             : projects.length > 0 ? projects[0].path : 'C:\\Users\\Admin\\Desktop\\PhuocTH\\Tasks\\OfficeRoom';
@@ -891,7 +890,7 @@ export default function App() {
             id: newTaskId,
             office_id: officeId,
             agent_id: targetAgentId,
-            runner_id: targetRunner?.id || null,
+            runner_id: null,
             folder_path: chosenFolderPath,
             conversation_id: targetAgent?.conversation_id || null,
             title,
@@ -2553,14 +2552,28 @@ export default function App() {
           <div className="modal-body">
             {/* Status & actions */}
             <div className="actions" style={{ marginBottom: '14px' }}>
-              <span className={`pill ${detailTask.status === 'RUNNING' || detailTask.status === 'doing' ? 'pill-doing' : detailTask.status === 'SUCCESS' ? 'pill-done' : ''}`}>
-                {detailTask.status === 'RUNNING' || detailTask.status === 'doing'
+              <span className={`pill ${
+                detailTask.status === 'RUNNING' || detailTask.status === 'doing' || detailTask.status === 'running'
+                  ? 'pill-doing'
+                  : detailTask.status === 'queued' || detailTask.status === 'todo'
+                  ? 'pill-doing'
+                  : (detailTask.status === 'SUCCESS' || detailTask.status === 'success') && detailTask.review_status === 'approved'
+                  ? 'pill-done'
+                  : detailTask.status === 'SUCCESS' || detailTask.status === 'success'
+                  ? 'pill-review'
+                  : detailTask.status === 'INTERRUPTED' || detailTask.status === 'interrupted'
+                  ? 'pill-interrupted'
+                  : ''
+              }`}>
+                {detailTask.status === 'RUNNING' || detailTask.status === 'doing' || detailTask.status === 'running'
                   ? '⚡ Đang làm'
-                  : detailTask.status === 'SUCCESS' && detailTask.review_status === 'approved'
+                  : detailTask.status === 'queued' || detailTask.status === 'todo'
+                  ? '⏳ Đang xếp hàng'
+                  : (detailTask.status === 'SUCCESS' || detailTask.status === 'success') && detailTask.review_status === 'approved'
                   ? '✓ Hoàn tất'
-                  : detailTask.status === 'SUCCESS'
+                  : detailTask.status === 'SUCCESS' || detailTask.status === 'success'
                   ? 'Chờ bạn duyệt'
-                  : detailTask.status === 'INTERRUPTED'
+                  : detailTask.status === 'INTERRUPTED' || detailTask.status === 'interrupted'
                   ? 'Gián đoạn'
                   : 'Lỗi'}
               </span>
@@ -2590,7 +2603,7 @@ export default function App() {
               <span style={{ fontSize: '12px', color: '#2a624d', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={detailTask.folder_path}>
                 📁 <strong>Folder:</strong> {detailTask.folder_path}
               </span>
-              {detailTask.status !== 'RUNNING' && detailTask.status !== 'running' && (
+              {detailTask.status !== 'RUNNING' && detailTask.status !== 'running' && detailTask.status !== 'queued' && (
                 <button
                   type="button"
                   className="small"
@@ -2606,8 +2619,29 @@ export default function App() {
             <label>Yêu cầu ban đầu</label>
             <div className="result">{detailTask.prompt}</div>
 
+            {/* If Task is Queued: Show queued status and cancel button */}
+            {(detailTask.status === 'queued' || detailTask.status === 'todo') && (
+              <div style={{ marginTop: '16px', background: '#fef3c7', padding: '14px', borderRadius: '10px', border: '1px solid #fcd34d' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <strong style={{ color: '#92400e' }}>
+                    ⏳ Đang xếp hàng chờ Runner trên máy trạm nhận việc...
+                  </strong>
+                  <button
+                    className="danger small"
+                    onClick={() => handleStopTask(detailTask.agent_id)}
+                    title="Hủy tác vụ đang xếp hàng"
+                  >
+                    🛑 Hủy tác vụ
+                  </button>
+                </div>
+                <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: '#78350f' }}>
+                  Đảm bảo cửa sổ PowerShell đang chạy lệnh <code>powershell .\start-runner.ps1</code> và không bị bấm chọn bôi đen văn bản.
+                </p>
+              </div>
+            )}
+
             {/* If Task is Running: Live progress stream and STOP button */}
-            {(detailTask.status === 'RUNNING' || detailTask.status === 'doing') && (
+            {(detailTask.status === 'RUNNING' || detailTask.status === 'doing' || detailTask.status === 'running') && (
               <div style={{ marginTop: '16px', background: '#fef3c7', padding: '14px', borderRadius: '10px', border: '1px solid #fcd34d' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                   <strong style={{ color: '#92400e' }}>
@@ -2634,7 +2668,7 @@ export default function App() {
             )}
 
             {/* Result display */}
-            {detailTask.status !== 'RUNNING' && detailTask.status !== 'doing' && (
+            {detailTask.status !== 'RUNNING' && detailTask.status !== 'doing' && detailTask.status !== 'running' && detailTask.status !== 'queued' && (
               <div style={{ marginTop: '14px' }}>
                 <label>Kết quả từ Agent</label>
                 <div className="result">

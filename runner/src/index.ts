@@ -361,11 +361,11 @@ async function startRunner() {
     await sendHeartbeat(currentExec ? 'busy' : 'online');
   }, 10000);
 
-  // Fallback polling loop (every 12 seconds when idle, Realtime handles instant trigger)
+  // Polling loop (every 4 seconds when idle to pick up queued tasks immediately)
   const pollTimer = setInterval(async () => {
     if (!isRunning || getActiveExecution()) return;
     await claimAndRunTask();
-  }, 12000);
+  }, 4000);
 
   // Initial task check
   await claimAndRunTask();
